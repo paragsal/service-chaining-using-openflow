@@ -1,0 +1,50 @@
+#!/usr/bin/python
+
+import MySQLdb
+import socket, struct
+# Open database connection
+db = MySQLdb.connect("localhost","testuser","test623","testdb1" )
+
+# prepare a cursor object using cursor() method
+cursor = db.cursor()
+
+# Drop table if it already exist using execute() method.
+#cursor.execute("DROP TABLE IF EXISTS SWITCH1")
+
+# Create table as per requirement
+
+sql = """CREATE TABLE CONTROLLER (
+         SERVICE  VARCHAR(80) NOT NULL,
+         PROVIDER VARCHAR(80),SWITCH VARCHAR(100))"""
+
+cursor.execute(sql)
+
+cursor.execute("INSERT INTO CONTROLLER(SERVICE,PROVIDER,SWITCH) VALUES('EB','10.0.1.1','00:00:00:00:00:00:00:01')")
+
+cursor.execute("INSERT INTO CONTROLLER(SERVICE,PROVIDER,SWITCH) VALUES('EC','10.0.0.2,10.0.0.3','00:00:00:00:00:00:00:02')")
+
+cursor.execute("SELECT * FROM CONTROLLER WHERE SERVICE='EB'");
+rows=cursor.fetchall()
+
+print cursor.rowcount
+for row in rows:
+    print row
+
+cursor.execute("SELECT PROVIDER,SWITCH FROM CONTROLLER WHERE SERVICE='EC'");
+row=cursor.fetchone()
+print row[0];
+x=row[0]
+print "copied value of row[0]"
+print x;
+my=x.split(',');
+print "different value separated by comma"
+print my[0]
+print my[1]
+
+print "SWITCH DPID"
+print row[1]
+
+
+db.commit()
+
+db.close()
