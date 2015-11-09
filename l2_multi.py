@@ -162,6 +162,44 @@ def _get_path (src, dst, first_port, final_port):
 
   return r
 
+#**********function added by Sumit ***************   
+def fetch_service_info(serv_arr):
+  len=len(serv_arr)
+  i=0
+  if len(path_map) == 0: _calc_paths()
+  service_switch=[]
+  db = MySQLdb.connect("localhost","testuser","test623","testdb1" )
+    # prepare a cursor object using cursor() method
+  cursor = db.cursor()
+  while i<len:	
+    cursor.execute("SELECT SWITCH FROM CONTROLLER WHERE SERVICE=%s",(serv_arr[i]))
+    row=cursor.fetchone()
+    switch_list=row[0].split(',')
+    len_row=len(switch_list)
+    print row[0]
+    j=0
+    if len_row = 1:
+      service_switch.append(row[0])
+    elif len_row > 1:                 #if more than one service switch available, then find nearest switch and append it to service_switch
+      if i==0:
+        sw1=self
+      else:
+        sw1=service_switch[i-1]
+        min=0		  
+#????? assuming that path_map has already been generated, need to check if path_map[][DPID]takes DPID or mac addresses as keys
+      while j<len_row:                          
+        if min<path_map[sw1][switch_list[j]][0]: #finding the switch closest to last service switch
+          min=path_map[sw1][switch_list[j]][0]    
+          k=j
+        j=j+1   	
+	service_switch.append(switch_list[k])
+		 		  
+    i=i+1
+  db.close()  
+  return service_switch
+    	  
+#**********changes by Sumit till here *************************   
+  
 
 class WaitingPath (object):
   """
@@ -312,44 +350,6 @@ class Switch (EventMixin):
     # (we'll just assume that will work)
     p = [(sw,out_port,in_port) for sw,in_port,out_port in p]
     self._install_path(p, match.flip())
-
-
-#**********function added by Sumit ***************   
-  def fetch_service_info(serv_arr):
-    len=len(serv_arr)
-    i=0
-    service_switch=[]
-    db = MySQLdb.connect("localhost","testuser","test623","testdb1" )
-    # prepare a cursor object using cursor() method
-    cursor = db.cursor()
-    while i<len:	
-      cursor.execute("SELECT SWITCH FROM CONTROLLER WHERE SERVICE=%s",(serv_arr[i]))
-      row=cursor.fetchone()
-      len_row=len(row)
-      print row
-      j=0
-      if len_row = 1:
-        service_switch.append(row[0])
-      elif len_row > 1:                 #if more than one service switch available, then find nearest switch and append it to service_switch
-        switch_list=row[0].split(',')
-          if i==0:
-	    sw1=self
-	  else:
-            sw1=service_switch[i-1]
-          min=0		  
-#????? assuming that path_map has already been generated, need to check if path_map[][DPID]takes DPID or mac addresses as keys
-	  while j<len_row:                          
-	    if min<path_map[sw1][switch_list[j]][0]: #finding the switch closest to last service switch
-	      min=path_map[sw1][switch_list[j]][0]    
-	      k=j
-	      j=j+1   	
-	    service_switch.append(switch_list[k])
-		 		  
-      i=i+1
-      db.close()  
-      return service_switch
-    	  
-#**********changes by Sumit till here ************************* 
  
   def _handle_PacketIn (self, event):
     def flood ():
@@ -446,20 +446,22 @@ class Switch (EventMixin):
       else:
 #*****************changes made by Sumit **********************
         serv_switch=[]
-	serv_switch=fetch_service_info(service_name_array)
+		serv_switch=fetch_service_info(service_name_array)
         		
 #******************till here  and below changes have been commented out*****************************	  
         dest = mac_map[packet.dst]
-#	serv_switch.append(dest[0])
-#	last_port=dest[1]
-#	port_serv_switch=adjacency[serv_switch[0]][self]		#port at serv_switch[0] to connect to this switch
-#	len_serv_switch=len(serv_switch)
+#		serv_switch.append(dest[0])
+#		last_port=dest[1]
+#		port_serv_switch=adjacency[serv_switch[0]][self]		#port at serv_switch[0] to connect to this switch
+#		len_serv_switch=len(serv_switch)
         match = of.ofp_match.from_packet(packet)
-	self.install_path(dest[0], dest[1], match, event)
-#	self.install_path(serv_switch[0], port_serv_switch, match, event)
-'''		
-          if len(serv_switch>1):
-          self.install_path_new(serv_switch, dest[1], match, event)
+		self.install_path(dest[0], dest[1], match, event)
+#		self.install_path(serv_switch[0], port_serv_switch, match, event)
+'''		i=1
+		if len(serv_switch>1):
+		  while i<serv_switch:
+            self.install_path_new(serv_switch[i],serv_switch[i+1],match,event)
+			self.install_path_new(serv_switch, dest[1], match, event)
 '''
   def disconnect (self):
     if self.connection is not None:
