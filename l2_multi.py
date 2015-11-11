@@ -168,6 +168,7 @@ def fetch_service_info(serv_arr):
   i=0
   if len(path_map) == 0: _calc_paths()
   service_switch=[]
+  service_port=[]   #port to which VM is connected with service switch
   db = MySQLdb.connect("localhost","testuser","test623","testdb1" )
     # prepare a cursor object using cursor() method
   cursor = db.cursor()
@@ -177,6 +178,10 @@ def fetch_service_info(serv_arr):
     switch_list=row[0].split(',')
     len_row=len(switch_list)
     print row[0]
+#assuming all VMs are connected to service swithces through same ports
+    cursor.execute("SELECT PORT FROM CONTROLLER WHERE SERVICE=%s",(serv_arr[i]))
+    row_port=cursor.fetchone()
+    service_port.append(row_port[0])
     j=0
     if len_row = 1:
       service_switch.append(row[0])
@@ -196,7 +201,7 @@ def fetch_service_info(serv_arr):
 		 		  
     i=i+1
   db.close()  
-  return service_switch
+  return service_switch, service_port
     	  
 #**********changes by Sumit till here *************************   
   
@@ -296,6 +301,16 @@ class Switch (EventMixin):
       sw.connection.send(msg)
       wp.add_xid(sw.dpid,msg.xid)
 
+#************** Added by Sumit : to intall flows on intermediate and last switch switches *************#
+  def _install_path_new (self, p, match):
+#    wp = WaitingPath(p, packet_in)
+    for sw,in_port,out_port in p:
+      self._install(sw, in_port, out_port, match)
+#      msg = of.ofp_barrier_request()
+#      sw.connection.send(msg)
+#      wp.add_xid(sw.dpid,msg.xid)
+
+#***********************added till here ************************************************	  
   def install_path (self, dst_sw, last_port, match, event):
     """
     Attempts to install a path between this switch and some destination
@@ -348,9 +363,25 @@ class Switch (EventMixin):
 
     # Now reverse it and install it backwards
     # (we'll just assume that will work)
-    p = [(sw,out_port,in_port) for sw,in_port,out_port in p]
-    self._install_path(p, match.flip())
+#Sumit : We don't need a reverse path in our case as packets are fowarded in Service basis and not simple src->dest basis
+#    p = [(sw,out_port,in_port) for sw,in_port,out_port in p]
+#    self._install_path(p, match.flip())
  
+#*********************Added by Sumit to get intermediate switched between service switch ***************
+  def install_path_new(src_sw, dst_sw, first_port, last_port, match):
+    
+	p = _get_path(src_sw, dst_sw, first_port, last_port)
+    if p is None:
+      log.warning("Can't get from %s to %s", match.dl_src, match.dl_dst)
+	else:
+	  log.debug("Installing path for %s -> %s %04x (%i hops)",
+      match.dl_src, match.dl_dst, match.dl_type, len(p))
+
+    # We have a path -- install it
+    self._install_path_new(p, match)
+
+#********************Changes till here *******************************************	
+	  
   def _handle_PacketIn (self, event):
     def flood ():
       """ Floods the packet """
@@ -446,23 +477,26 @@ class Switch (EventMixin):
       else:
 #*****************changes made by Sumit **********************
         serv_switch=[]
-		serv_switch=fetch_service_info(service_name_array)
+	serv_switch, serving_port=fetch_service_info(service_name_array)
         		
-#******************till here  and below changes have been commented out*****************************	  
+	  
         dest = mac_map[packet.dst]
+		len_serv_switch=len(serv_switch)
 #		serv_switch.append(dest[0])
 #		last_port=dest[1]
 #		port_serv_switch=adjacency[serv_switch[0]][self]		#port at serv_switch[0] to connect to this switch
 #		len_serv_switch=len(serv_switch)
         match = of.ofp_match.from_packet(packet)
-		self.install_path(dest[0], dest[1], match, event)
-#		self.install_path(serv_switch[0], port_serv_switch, match, event)
-'''		i=1
-		if len(serv_switch>1):
-		  while i<serv_switch:
-            self.install_path_new(serv_switch[i],serv_switch[i+1],match,event)
-			self.install_path_new(serv_switch, dest[1], match, event)
-'''
+	self.install_path(serv_switch[0], serving_port[0], match, event) #in case only one serv_switch, install path to it and then to dest
+	i=0
+	if len>1: #install flow on all service switches and destination in case of more than 1 service switch
+	  while(i<len-1):
+	    self.install_path_new(serv_switch[i],serv_switch[i+1],serving_port[i],service_port[i+1],match)
+	    i=i+1
+	  self.install_path_new(serv_switch[i],dest[0],serving_port[i-1],dest[1], match)
+	self.install_path_new(serv_switch[0],dest[0],serving_port[0],dest[1],match)  
+#******************till here  and below changes have been commented out*****************************	
+
   def disconnect (self):
     if self.connection is not None:
       log.debug("Disconnect %s" % (self.connection,))
