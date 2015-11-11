@@ -368,17 +368,16 @@ class Switch (EventMixin):
 #    self._install_path(p, match.flip())
  
 #*********************Added by Sumit to get intermediate switched between service switch ***************
+# ???????????????? indentation needs to be checked before testing ???????????????
   def install_path_new(src_sw, dst_sw, first_port, last_port, match):
-    
-	p = _get_path(src_sw, dst_sw, first_port, last_port)
+    p = _get_path(src_sw, dst_sw, first_port, last_port)
     if p is None:
       log.warning("Can't get from %s to %s", match.dl_src, match.dl_dst)
-	else:
-	  log.debug("Installing path for %s -> %s %04x (%i hops)",
+    else:
+      log.debug("Installing path for %s -> %s %04x (%i hops)",
       match.dl_src, match.dl_dst, match.dl_type, len(p))
-
-    # We have a path -- install it
-    self._install_path_new(p, match)
+      # We have a path -- install it
+      self._install_path_new(p, match)
 
 #********************Changes till here *******************************************	
 	  
@@ -477,11 +476,12 @@ class Switch (EventMixin):
       else:
 #*****************changes made by Sumit **********************
         serv_switch=[]
+        serving_port=[]
 	serv_switch, serving_port=fetch_service_info(service_name_array)
         		
 	  
         dest = mac_map[packet.dst]
-		len_serv_switch=len(serv_switch)
+	len_serv_switch=len(serv_switch)
 #		serv_switch.append(dest[0])
 #		last_port=dest[1]
 #		port_serv_switch=adjacency[serv_switch[0]][self]		#port at serv_switch[0] to connect to this switch
@@ -495,7 +495,7 @@ class Switch (EventMixin):
 	    i=i+1
 	  self.install_path_new(serv_switch[i],dest[0],serving_port[i-1],dest[1], match)
 	self.install_path_new(serv_switch[0],dest[0],serving_port[0],dest[1],match)  
-#******************till here  and below changes have been commented out*****************************	
+#******************Changes till here *****************************	
 
   def disconnect (self):
     if self.connection is not None:
