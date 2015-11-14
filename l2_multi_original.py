@@ -34,9 +34,8 @@ from pox.lib.recoco import Timer
 from collections import defaultdict
 from pox.openflow.discovery import Discovery
 from pox.lib.util import dpid_to_str
+import pox.openflow.discovery
 import time
-import MySQLdb
-import socket, struct
 
 log = core.getLogger()
 
@@ -162,49 +161,6 @@ def _get_path (src, dst, first_port, final_port):
 
   return r
 
-#**********function added by Sumit ***************   
-def fetch_service_info(serv_arr):
-  len=len(serv_arr)
-  i=0
-  if len(path_map) == 0: _calc_paths()
-  service_switch=[]
-  service_port=[]   #port to which VM is connected with service switch
-  db = MySQLdb.connect("localhost","testuser","test623","testdb1" )
-    # prepare a cursor object using cursor() method
-  cursor = db.cursor()
-  while i<len:	
-    cursor.execute("SELECT SWITCH FROM CONTROLLER WHERE SERVICE=%s",(serv_arr[i]))
-    row=cursor.fetchone()
-    switch_list=row[0].split(',')
-    len_row=len(switch_list)
-    print row[0]
-#assuming all VMs are connected to service swithces through same ports
-    cursor.execute("SELECT PORT FROM CONTROLLER WHERE SERVICE=%s",(serv_arr[i]))
-    row_port=cursor.fetchone()
-    service_port.append(row_port[0])
-    j=0
-    if len_row = 1:
-      service_switch.append(row[0])
-    elif len_row > 1:                 #if more than one service switch available, then find nearest switch and append it to service_switch
-      if i==0:
-        sw1=self
-      else:
-        sw1=service_switch[i-1]
-        min=0		  
-#????? assuming that path_map has already been generated, need to check if path_map[][DPID]takes DPID or mac addresses as keys
-      while j<len_row:                          
-        if min<path_map[sw1][switch_list[j]][0]: #finding the switch closest to last service switch
-          min=path_map[sw1][switch_list[j]][0]    
-          k=j
-        j=j+1   	
-	service_switch.append(switch_list[k])
-		 		  
-    i=i+1
-  db.close()  
-  return service_switch, service_port
-    	  
-#**********changes by Sumit till here *************************   
-  
 
 class WaitingPath (object):
   """
@@ -301,16 +257,6 @@ class Switch (EventMixin):
       sw.connection.send(msg)
       wp.add_xid(sw.dpid,msg.xid)
 
-#************** Added by Sumit : to intall flows on intermediate and last switch switches *************#
-  def _install_path_new (self, p, match):
-#    wp = WaitingPath(p, packet_in)
-    for sw,in_port,out_port in p:
-      self._install(sw, in_port, out_port, match)
-#      msg = of.ofp_barrier_request()
-#      sw.connection.send(msg)
-#      wp.add_xid(sw.dpid,msg.xid)
-
-#***********************added till here ************************************************	  
   def install_path (self, dst_sw, last_port, match, event):
     """
     Attempts to install a path between this switch and some destination
@@ -363,24 +309,10 @@ class Switch (EventMixin):
 
     # Now reverse it and install it backwards
     # (we'll just assume that will work)
-#Sumit : We don't need a reverse path in our case as packets are fowarded in Service basis and not simple src->dest basis
-#    p = [(sw,out_port,in_port) for sw,in_port,out_port in p]
-#    self._install_path(p, match.flip())
- 
-#*********************Added by Sumit to get intermediate switched between service switch ***************
-# ???????????????? indentation needs to be checked before testing ???????????????
-  def install_path_new(src_sw, dst_sw, first_port, last_port, match):
-    p = _get_path(src_sw, dst_sw, first_port, last_port)
-    if p is None:
-      log.warning("Can't get from %s to %s", match.dl_src, match.dl_dst)
-    else:
-      log.debug("Installing path for %s -> %s %04x (%i hops)",
-      match.dl_src, match.dl_dst, match.dl_type, len(p))
-      # We have a path -- install it
-      self._install_path_new(p, match)
+    p = [(sw,out_port,in_port) for sw,in_port,out_port in p]
+    self._install_path(p, match.flip())
 
-#********************Changes till here *******************************************	
-	  
+
   def _handle_PacketIn (self, event):
     def flood ():
       """ Floods the packet """
@@ -392,7 +324,7 @@ class Switch (EventMixin):
       msg.buffer_id = event.ofp.buffer_id
       msg.in_port = event.port
       self.connection.send(msg)
-    
+
     def drop ():
       # Kill the buffer
       if event.ofp.buffer_id is not None:
@@ -403,31 +335,6 @@ class Switch (EventMixin):
         self.connection.send(msg)
 
     packet = event.parsed
-#*************changes made by mahendra ****************/
-
-    if packet.type == ethernet.IP_TYPE and packet.payload_len >= 60:
-        #Skip Minimum length packet which doesn't contain any data
-        print packet.next.dstip
-
-        print packet.next.next.raw[32:]
-        data = packet.next.next.raw[32:]
-        self.timer = data[:1] #Sumit: changed the value from data[:2] to data[:1] as timer is only 1 byte
-        print "Timer -", self.timer
-        self.tot_srvc = data[1:2] #Sumit: service length is only 1 byte
-        print " Total Service -",self.tot_srvc
-        data = data[2:] #Sumit:
-
-        j=0;
-
-        self.service_name_array = [];
-        for i in range(0,self.tot_srvc) :
-           self.service_name_array.append(data[j:j+2] ); 
-           j+=2
-           print self.service_name_array[i]
-
-        data = data[:j] 	
-	
-#*****************changes made by mahendra ends here *****************	
 
     loc = (self, event.port) # Place we saw this ethaddr
     oldloc = mac_map.get(packet.src) # Place we last saw this ethaddr
@@ -474,28 +381,9 @@ class Switch (EventMixin):
         log.debug("%s unknown -- flooding" % (packet.dst,))
         flood()
       else:
-#*****************changes made by Sumit **********************
-        serv_switch=[]
-        serving_port=[]
-	serv_switch, serving_port=fetch_service_info(service_name_array)
-        		
-	  
         dest = mac_map[packet.dst]
-	len_serv_switch=len(serv_switch)
-#		serv_switch.append(dest[0])
-#		last_port=dest[1]
-#		port_serv_switch=adjacency[serv_switch[0]][self]		#port at serv_switch[0] to connect to this switch
-#		len_serv_switch=len(serv_switch)
         match = of.ofp_match.from_packet(packet)
-	self.install_path(serv_switch[0], serving_port[0], match, event) #in case only one serv_switch, install path to it and then to dest
-	i=0
-	if len>1: #install flow on all service switches and destination in case of more than 1 service switch
-	  while(i<len-1):
-	    self.install_path_new(serv_switch[i],serv_switch[i+1],serving_port[i],service_port[i+1],match)
-	    i=i+1
-	  self.install_path_new(serv_switch[i],dest[0],serving_port[i-1],dest[1], match)
-	self.install_path_new(serv_switch[0],dest[0],serving_port[0],dest[1],match)  
-#******************Changes till here *****************************	
+        self.install_path(dest[0], dest[1], match, event)
 
   def disconnect (self):
     if self.connection is not None:
@@ -617,6 +505,8 @@ class l2_multi (EventMixin):
 
 def launch ():
   core.registerNew(l2_multi)
-
+  
   timeout = min(max(PATH_SETUP_TIME, 5) * 2, 15)
   Timer(timeout, WaitingPath.expire_waiting_paths, recurring=True)
+
+  pox.openflow.discovery.launch()
