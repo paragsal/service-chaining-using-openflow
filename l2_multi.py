@@ -37,6 +37,7 @@ from pox.lib.util import dpid_to_str
 import time
 import MySQLdb
 import socket, struct
+import pox.openflow.discovery
 
 log = core.getLogger()
 
@@ -183,7 +184,7 @@ def fetch_service_info(serv_arr):
     row_port=cursor.fetchone()
     service_port.append(row_port[0])
     j=0
-    if len_row = 1:
+    if len_row == 1:
       service_switch.append(row[0])
     elif len_row > 1:                 #if more than one service switch available, then find nearest switch and append it to service_switch
       if i==0:
@@ -620,3 +621,4 @@ def launch ():
 
   timeout = min(max(PATH_SETUP_TIME, 5) * 2, 15)
   Timer(timeout, WaitingPath.expire_waiting_paths, recurring=True)
+  pox.openflow.discovery.launch();
