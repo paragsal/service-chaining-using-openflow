@@ -26,7 +26,7 @@ does (mostly) work. :)
 Depends on openflow.discovery
 Works with openflow.spanning_tree
 """
-
+import sys
 from pox.core import core
 import pox.openflow.libopenflow_01 as of
 from pox.lib.revent import *
@@ -34,6 +34,7 @@ from pox.lib.recoco import Timer
 from collections import defaultdict
 from pox.openflow.discovery import Discovery
 from pox.lib.util import dpid_to_str
+from pox.lib.packet import *
 import time
 import MySQLdb
 import socket, struct
@@ -102,8 +103,8 @@ def _calc_paths ():
               # i -> k -> j is better than existing
               path_map[i][j] = (ikj_dist, k)
 
-  #print "--------------------"
-  #dump()
+  print "--------------------"
+  dump()
 
 
 def _get_raw_path (src, dst):
@@ -165,7 +166,7 @@ def _get_path (src, dst, first_port, final_port):
 
 #**********function added by Sumit ***************   
 def fetch_service_info(serv_arr):
-  len=len(serv_arr)
+  length=len(serv_arr)
   i=0
   if len(path_map) == 0: _calc_paths()
   service_switch=[]
@@ -173,7 +174,7 @@ def fetch_service_info(serv_arr):
   db = MySQLdb.connect("localhost","testuser","test623","testdb1" )
     # prepare a cursor object using cursor() method
   cursor = db.cursor()
-  while i<len:	
+  while i<length:
     cursor.execute("SELECT SWITCH FROM CONTROLLER WHERE SERVICE=%s",(serv_arr[i]))
     row=cursor.fetchone()
     switch_list=row[0].split(',')
@@ -191,19 +192,19 @@ def fetch_service_info(serv_arr):
         sw1=self
       else:
         sw1=service_switch[i-1]
-        min=0		  
+        min=0             
 #????? assuming that path_map has already been generated, need to check if path_map[][DPID]takes DPID or mac addresses as keys
       while j<len_row:                          
         if min<path_map[sw1][switch_list[j]][0]: #finding the switch closest to last service switch
           min=path_map[sw1][switch_list[j]][0]    
           k=j
-        j=j+1   	
-	service_switch.append(switch_list[k])
-		 		  
+        j=j+1   
+        service_switch.append(switch_list[k])
+                                  
     i=i+1
   db.close()  
   return service_switch, service_port
-    	  
+          
 #**********changes by Sumit till here *************************   
   
 
@@ -311,7 +312,7 @@ class Switch (EventMixin):
 #      sw.connection.send(msg)
 #      wp.add_xid(sw.dpid,msg.xid)
 
-#***********************added till here ************************************************	  
+#***********************added till here ************************************************          
   def install_path (self, dst_sw, last_port, match, event):
     """
     Attempts to install a path between this switch and some destination
@@ -380,13 +381,14 @@ class Switch (EventMixin):
       # We have a path -- install it
       self._install_path_new(p, match)
 
-#********************Changes till here *******************************************	
-	  
+#********************Changes till here *******************************************
+          
   def _handle_PacketIn (self, event):
     def flood ():
       """ Floods the packet """
-      if self.is_holding_down:
-        log.warning("Not flooding -- holddown active")
+      #if self.is_holding_down:
+      #  log.warning("Not flooding -- holddown active")
+      log.warning("Flooding the packet")
       msg = of.ofp_packet_out()
       # OFPP_FLOOD is optional; some switches may need OFPP_ALL
       msg.actions.append(of.ofp_action_output(port = of.OFPP_FLOOD))
@@ -405,13 +407,17 @@ class Switch (EventMixin):
 
     packet = event.parsed
 #*************changes made by mahendra ****************/
-
-    if packet.type == ethernet.IP_TYPE and packet.payload_len >= 60:
+    self.service_name_array = [];
+    
+    if packet.type != ethernet.ARP_TYPE :
+        #if packet.type == ethernet.IP_TYPE and packet.payload_len >= 60:
         #Skip Minimum length packet which doesn't contain any data
         print packet.next.dstip
-
-        print packet.next.next.raw[32:]
-        data = packet.next.next.raw[32:]
+        
+        print "*"*20
+        print packet.next.next.raw[8:]
+        print "*"*20
+        data = packet.next.next.raw[8:]
         self.timer = data[:1] #Sumit: changed the value from data[:2] to data[:1] as timer is only 1 byte
         print "Timer -", self.timer
         self.tot_srvc = data[1:2] #Sumit: service length is only 1 byte
@@ -420,15 +426,14 @@ class Switch (EventMixin):
 
         j=0;
 
-        self.service_name_array = [];
-        for i in range(0,self.tot_srvc) :
+        for i in range(0,int(self.tot_srvc)) :
            self.service_name_array.append(data[j:j+2] ); 
            j+=2
            print self.service_name_array[i]
 
-        data = data[:j] 	
-	
-#*****************changes made by mahendra ends here *****************	
+        data = data[:j] 
+
+#*****************changes made by mahendra ends here *****************
 
     loc = (self, event.port) # Place we saw this ethaddr
     oldloc = mac_map.get(packet.src) # Place we last saw this ethaddr
@@ -469,34 +474,40 @@ class Switch (EventMixin):
 
     if packet.dst.is_multicast:
       log.debug("Flood multicast from %s", packet.src)
+      print "&&"*20
       flood()
     else:
       if packet.dst not in mac_map:
         log.debug("%s unknown -- flooding" % (packet.dst,))
+        print "******************************************************"
         flood()
       else:
 #*****************changes made by Sumit **********************
         serv_switch=[]
         serving_port=[]
-	serv_switch, serving_port=fetch_service_info(service_name_array)
-        		
-	  
+        if len(self.service_name_array) ==0:
+                flood()
+                return;
+
+        serv_switch, serving_port=fetch_service_info(self.service_name_array)
+        
+          
         dest = mac_map[packet.dst]
-	len_serv_switch=len(serv_switch)
-#		serv_switch.append(dest[0])
-#		last_port=dest[1]
-#		port_serv_switch=adjacency[serv_switch[0]][self]		#port at serv_switch[0] to connect to this switch
-#		len_serv_switch=len(serv_switch)
+        len_serv_switch=len(serv_switch)
+#               serv_switch.append(dest[0])
+#               last_port=dest[1]
+#               port_serv_switch=adjacency[serv_switch[0]][self]                #port at serv_switch[0] to connect to this switch
+#               len_serv_switch=len(serv_switch)
         match = of.ofp_match.from_packet(packet)
-	self.install_path(serv_switch[0], serving_port[0], match, event) #in case only one serv_switch, install path to it and then to dest
-	i=0
-	if len>1: #install flow on all service switches and destination in case of more than 1 service switch
-	  while(i<len-1):
-	    self.install_path_new(serv_switch[i],serv_switch[i+1],serving_port[i],service_port[i+1],match)
-	    i=i+1
-	  self.install_path_new(serv_switch[i],dest[0],serving_port[i-1],dest[1], match)
-	self.install_path_new(serv_switch[0],dest[0],serving_port[0],dest[1],match)  
-#******************Changes till here *****************************	
+        self.install_path(serv_switch[0], serving_port[0], match, event) #in case only one serv_switch, install path to it and then to dest
+        i=0
+        if len>1: #install flow on all service switches and destination in case of more than 1 service switch
+          while(i<len-1):
+            self.install_path_new(serv_switch[i],serv_switch[i+1],serving_port[i],service_port[i+1],match)
+            i=i+1
+          self.install_path_new(serv_switch[i],dest[0],serving_port[i-1],dest[1], match)
+        self.install_path_new(serv_switch[0],dest[0],serving_port[0],dest[1],match)  
+#******************Changes till here *****************************
 
   def disconnect (self):
     if self.connection is not None:
@@ -519,7 +530,9 @@ class Switch (EventMixin):
 
   @property
   def is_holding_down (self):
-    if self._connected_at is None: return True
+    if self._connected_at is None: 
+        print "###"*20
+        return True
     if time.time() - self._connected_at > FLOOD_HOLDDOWN:
       return False
     return True
@@ -621,4 +634,8 @@ def launch ():
 
   timeout = min(max(PATH_SETUP_TIME, 5) * 2, 15)
   Timer(timeout, WaitingPath.expire_waiting_paths, recurring=True)
-  pox.openflow.discovery.launch();
+  #pox.openflow.discovery.launch();
+  import pox.openflow.spanning_tree
+  pox.openflow.spanning_tree.launch()
+
+
