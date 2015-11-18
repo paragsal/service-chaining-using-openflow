@@ -61,8 +61,8 @@ waiting_paths = {}
 FLOOD_HOLDDOWN = 5
 
 # Flow timeouts
-FLOW_IDLE_TIMEOUT = 10
-FLOW_HARD_TIMEOUT = 30
+FLOW_IDLE_TIMEOUT = 1000
+FLOW_HARD_TIMEOUT = 3000
 
 # How long is allowable to set up a path?
 PATH_SETUP_TIME = 4
@@ -74,16 +74,36 @@ def _calc_paths ():
   """
 
   def dump ():
+    print "check********************"
+    print path_map[1][2][0]
     for i in sws:
       for j in sws:
+#        print "value of i,j in sws"
+#        print i , j
         a = path_map[i][j][0]
-        #a = adjacency[i][j]
+#        print path_map[00-00-00-00-00-01][00-00-00-00-00-02][0]
+        b = path_map[i][j][1]
         if a is None: a = "*"
+#    print "path_map[0] : distance between switches" 
         print a,
       print
-
+        
+#    print "mac_map"
+#    for key in mac_map:
+#      print key
+#      print mac_map[key]
+  print "check"      
+  print path_map[00-00-00-00-00-01][00-00-00-00-00-02][0]
   sws = switches.values()
   path_map.clear()
+  print "*******************path_map cleared***********************"
+  print "adjacency values"
+#  print adjacency[00-00-00-00-00-01][00-00-00-00-00-02][0]
+  for key in adjacency:
+    print key,adjacency[key]
+  print "printing switches dict"
+  for key in switches:
+    print key,switches[key]
   for k in sws:
     for j,port in adjacency[k].iteritems():
       if port is None: continue
@@ -111,11 +131,14 @@ def _get_raw_path (src, dst):
   """
   Get a raw path (just a list of nodes to traverse)
   """
-  if len(path_map) == 0: _calc_paths()
+  if len(path_map) == 0:
+    print "path_map is empty"
+    _calc_paths()
   if src is dst:
     # We're here!
     return []
   if path_map[src][dst][0] is None:
+    print "path_map[src][dst][0] is None"
     return None
   intermediate = path_map[src][dst][1]
   if intermediate is None:
@@ -123,7 +146,6 @@ def _get_raw_path (src, dst):
     return []
   return _get_raw_path(src, intermediate) + [intermediate] + \
          _get_raw_path(intermediate, dst)
-
 
 def _check_path (p):
   """
@@ -144,13 +166,29 @@ def _get_path (src, dst, first_port, final_port):
   Gets a cooked path -- a list of (node,in_port,out_port)
   """
   # Start with a raw path...
+#  print "path_map:"
+#  for key in path_map:
+#    print key,path_map[key]
+    
   if src == dst:
     path = [src]
   else:
     path = _get_raw_path(src, dst)
+    print "before return in get_path***************"
+    print "length of path_map is "
+    print len(path_map)
+    for key in path_map:
+      print key,path_map[key]
+    print path_map[src][dst][0]
+    print path_map[src][dst][1]
+    print path_map[00-00-00-00-00-01][00-00-00-00-00-03][0]
+    print path
+    print src
+    print dst
     if path is None: return None
     path = [src] + path + [dst]
-
+  print"path from src to dst in _get_path"
+  print path 
   # Now add the ports
   r = []
   in_port = first_port
@@ -168,6 +206,11 @@ def _get_path (src, dst, first_port, final_port):
 def fetch_service_info(serv_arr):
   length=len(serv_arr)
   i=0
+  print "@@@@@@@@@@@@@@@@@@@@@@@@@@@serv array is " 
+  print serv_arr
+  for key in switches:
+    print switches[key]
+    print key
   if len(path_map) == 0: _calc_paths()
   service_switch=[]
   service_port=[]   #port to which VM is connected with service switch
@@ -175,13 +218,15 @@ def fetch_service_info(serv_arr):
     # prepare a cursor object using cursor() method
   cursor = db.cursor()
   while i<length:
-    cursor.execute("SELECT SWITCH FROM CONTROLLER WHERE SERVICE=%s",(serv_arr[i]))
+    cursor.execute("SELECT switch1 FROM CONTROLLER WHERE SERVICE=%s",(serv_arr[i]))
     row=cursor.fetchone()
-    switch_list=row[0].split(',')
-    len_row=len(switch_list)
+    switch_list=row[0] 
+#   switch_list=row[0].split(',')
+    len_row=1
+    print row
     print row[0]
 #assuming all VMs are connected to service swithces through same ports
-    cursor.execute("SELECT PORT FROM CONTROLLER WHERE SERVICE=%s",(serv_arr[i]))
+    cursor.execute("SELECT port1 FROM CONTROLLER WHERE SERVICE=%s",(serv_arr[i]))
     row_port=cursor.fetchone()
     service_port.append(row_port[0])
     j=0
@@ -202,7 +247,11 @@ def fetch_service_info(serv_arr):
         service_switch.append(switch_list[k])
                                   
     i=i+1
-  db.close()  
+  db.close() 
+  print 'printing service switch'
+  print service_switch
+  print 'service port'
+  print service_port 
   return service_switch, service_port
           
 #**********changes by Sumit till here *************************   
@@ -286,6 +335,7 @@ class Switch (EventMixin):
     return dpid_to_str(self.dpid)
 
   def _install (self, switch, in_port, out_port, match, buf = None):
+    print "inside _install"
     msg = of.ofp_flow_mod()
     msg.match = match
     msg.match.in_port = in_port
@@ -294,8 +344,11 @@ class Switch (EventMixin):
     msg.actions.append(of.ofp_action_output(port = out_port))
     msg.buffer_id = buf
     switch.connection.send(msg)
+    print "******message sent to switch:"
+    print switch
 
   def _install_path (self, p, match, packet_in=None):
+    print "inside _install_path"
     wp = WaitingPath(p, packet_in)
     for sw,in_port,out_port in p:
       self._install(sw, in_port, out_port, match)
@@ -306,6 +359,7 @@ class Switch (EventMixin):
 #************** Added by Sumit : to intall flows on intermediate and last switch switches *************#
   def _install_path_new (self, p, match):
 #    wp = WaitingPath(p, packet_in)
+    print "inside _install_path_new"
     for sw,in_port,out_port in p:
       self._install(sw, in_port, out_port, match)
 #      msg = of.ofp_barrier_request()
@@ -317,7 +371,14 @@ class Switch (EventMixin):
     """
     Attempts to install a path between this switch and some destination
     """
+    print "inside install_path and switches in sequence are self,dst_sw,event.port,last_port"
+    print str(self)+" "+str(dst_sw)+" "+str(event.port)+" "+str(last_port)
+    print "printing mac_map again"
+    for key in mac_map:
+      print key
+      print mac_map[key]
     p = _get_path(self, dst_sw, event.port, last_port)
+    print p
     if p is None:
       log.warning("Can't get from %s to %s", match.dl_src, match.dl_dst)
 
@@ -371,7 +432,8 @@ class Switch (EventMixin):
  
 #*********************Added by Sumit to get intermediate switched between service switch ***************
 # ???????????????? indentation needs to be checked before testing ???????????????
-  def install_path_new(src_sw, dst_sw, first_port, last_port, match):
+  def install_path_new(self,src_sw, dst_sw, first_port, last_port, match):
+    print "inside install_path_new*******************"
     p = _get_path(src_sw, dst_sw, first_port, last_port)
     if p is None:
       log.warning("Can't get from %s to %s", match.dl_src, match.dl_dst)
@@ -491,7 +553,13 @@ class Switch (EventMixin):
 
         serv_switch, serving_port=fetch_service_info(self.service_name_array)
         
-          
+        print "serv_switch and serv_port"
+        print serv_switch
+        print serv_switch[0]
+#        print dpid_to_str(serv_switch[0])
+
+#        print switches[00-00-00-00-00-01]          
+        print serving_port          
         dest = mac_map[packet.dst]
         len_serv_switch=len(serv_switch)
 #               serv_switch.append(dest[0])
@@ -499,11 +567,11 @@ class Switch (EventMixin):
 #               port_serv_switch=adjacency[serv_switch[0]][self]                #port at serv_switch[0] to connect to this switch
 #               len_serv_switch=len(serv_switch)
         match = of.ofp_match.from_packet(packet)
-        self.install_path(serv_switch[0], serving_port[0], match, event) #in case only one serv_switch, install path to it and then to dest
+        self.install_path(switches[serv_switch[0]],serving_port[0], match, event) #in case only one serv_switch, install path to it and then to dest
         i=0
-        if len>1: #install flow on all service switches and destination in case of more than 1 service switch
-          while(i<len-1):
-            self.install_path_new(serv_switch[i],serv_switch[i+1],serving_port[i],service_port[i+1],match)
+        if len_serv_switch>1: #install flow on all service switches and destination in case of more than 1 service switch
+          while i<len_serv_switch-1:
+            self.install_path_new(switches[serv_switch[i]],switches[serv_switch[i+1]],serving_port[i],serving_port[i+1],match)
             i=i+1
           self.install_path_new(serv_switch[i],dest[0],serving_port[i-1],dest[1], match)
         self.install_path_new(serv_switch[0],dest[0],serving_port[0],dest[1],match)  
@@ -561,7 +629,9 @@ class l2_multi (EventMixin):
     l = event.link
     sw1 = switches[l.dpid1]
     sw2 = switches[l.dpid2]
-
+    print "l.dpid1 and dpid2"
+    print l.dpid1 , l.dpid2
+    print sw1, sw2
     # Invalidate all flows and path info.
     # For link adds, this makes sure that if a new link leads to an
     # improved path, we use it.
