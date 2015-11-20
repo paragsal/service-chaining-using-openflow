@@ -4,9 +4,6 @@ import java.net.*;
 import java.util.Scanner;
 
 import javax.imageio.ImageIO;
-import javax.swing.ImageIcon;
-import javax.swing.JFrame;
-import javax.swing.JLabel;
 
 public class NewHostA 
 {
@@ -16,34 +13,34 @@ public class NewHostA
 	public static void main(String[] args) throws Exception 
 	{	   
 			
-		   Socket HostASocket = new Socket("127.0.0.1", 1409); 
+		Socket HostASocket = new Socket("127.0.0.1", 1409); 
 
-	       DataOutputStream ToHostB = 
-	       new DataOutputStream(HostASocket.getOutputStream()); 
+	    DataOutputStream ToHostB = 
+	    new DataOutputStream(HostASocket.getOutputStream()); 
 	        
-	        BufferedReader FromHostB = 
-	        new BufferedReader(new
-	        InputStreamReader(HostASocket.getInputStream())); 
+	    BufferedReader FromHostB = 
+	    new BufferedReader(new
+	    InputStreamReader(HostASocket.getInputStream())); 
 		
 	       
-			BufferedImage image = null;
-			in = new Scanner(System.in);
-			System.out.println("Enter the path of image: ");
-		    String s = in.nextLine();
+		BufferedImage image = null;
+		in = new Scanner(System.in);
+		System.out.println("Enter the path of image: ");
+		String s = in.nextLine();
 		    
-			image = ImageIO.read(new File(s));
+		image = ImageIO.read(new File(s));
 			
-			ImageIO.write(image, "jpg", ToHostB);
+		ImageIO.write(image, "jpg", ToHostB);
 			    
 				
 		//	String messageFromB; 
 		//	messageFromB = FromHostB.readLine();
 		//	System.out.println("Message from Server: "+ messageFromB+".");
-		    HostASocket.close(); 
+		HostASocket.close(); 
 		                   
-		    } 
+	} 
 		
 
-	}
+}
 	
 
