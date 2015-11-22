@@ -231,12 +231,19 @@ def fetch_service_info(serv_arr):
 #assuming all VMs are connected to service swithces through same ports
     cursor.execute("SELECT PORT FROM CONTROLLER1 WHERE SERVICE=%s",(serv_arr[i]))
     row_port=cursor.fetchone()
-    service_port.append(int(row_port[0]))
+    port_list=row_port[0].split(',')
+#    service_port.append(int(row_port[0]))
+    print "len port list"
+    print len(port_list)
+    print "row_port[0]"
+    print row_port[0]
+    print "port list is"
+    print port_list
     j=0
     k=0
     if len_row == 1:
       service_switch.append(int(row[0]))
-#      service_port.append(int(row_port[0])    #it has to be included as different switches may be connected to VMs via different ports
+      service_port.append(int(row_port[0]))    #it has to be included as different switches may be connected to VMs via different ports
     elif len_row > 1:                 #if more than one service switch available, then find nearest switch and append it to service_switch
       if i==0:
 #        sw1=self
@@ -255,9 +262,9 @@ def fetch_service_info(serv_arr):
       print "minimum distance switch and value of j "
       print k,j,mini   
       service_switch.append(int(switch_list[k]))
-#     service_port.append(int(switch_list[k]))
-      print service_switch                    
-      print service_port      
+      service_port.append(int(port_list[k]))
+#      print service_switch                    
+#      print service_port      
     i=i+1
   db.close() 
   print 'printing service switch'
@@ -395,7 +402,7 @@ class Switch (EventMixin):
     print p
     if p is None:
       log.warning("Can't get from %s to %s", match.dl_src, match.dl_dst)
-sumit
+
       import pox.lib.packet as pkt
 
       if (match.dl_type == pkt.ethernet.IP_TYPE and
@@ -440,7 +447,7 @@ sumit
 
     # Now reverse it and install it backwards
     # (we'll just assume that will work)
-#Sumit : We  need a reverse path for getting the packets like acks, etc from host B to host A
+#Sumit : We  need a reverse path for getting the packets but the reverse path (host B to host A) shouldn't go via service VMs..that should go directly between switchs
     p = [(sw,out_port,in_port) for sw,in_port,out_port in p]
     self._install_path(p, match.flip())
  
@@ -606,8 +613,8 @@ sumit
           while i<len_serv_switch-1:
             self.install_path_new(switches[serv_switch[i]],switches[serv_switch[i+1]],serving_port[i],serving_port[i+1],match)
             i=i+1
-          self.install_path_new(serv_switch[i],dest[0],serving_port[i-1],dest[1], match)
-        self.install_path_new(serv_switch[0],dest[0],serving_port[0],dest[1],match)  
+#          self.install_path_new(switches[serv_switch[i]],dest[0],serving_port[i],dest[1], match)
+        self.install_path_new(switches[serv_switch[i]],dest[0],serving_port[i],dest[1],match)  
 #******************Changes till here *****************************
 
   def disconnect (self):
