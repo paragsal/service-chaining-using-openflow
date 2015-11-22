@@ -250,7 +250,7 @@ def fetch_service_info(serv_arr):
         sw1=1
       else:
         sw1=int(service_switch[i-1])
-        mini=1111110  #some random large value            
+      mini=1111110  #some random large value            
 #????? assuming that path_map has already been generated, need to check if path_map[][DPID]takes DPID or mac addresses as keys
       while j<len_row:                          
         if mini>path_map[switches[sw1]][switches[int(switch_list[j])]][0]: #finding the switch closest to last service switch
