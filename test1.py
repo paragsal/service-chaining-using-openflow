@@ -507,11 +507,18 @@ class Switch (EventMixin):
     		print "Total header length ->", tot_hl
     		print "Ethernet Payload length ->",packet.payload_len
         	print packet.next.dstip
-        
+
+       		#if (packet.next.protocol == ipv4.TCP_PROTOCOL) : 
         	print "*"*20
-        	print packet.next.next.raw[8:]
+        	print packet.next.next.raw[transport_hdr_len:]
         	print "*"*20
-        	data = packet.next.next.raw[8:]
+        	data = packet.next.next.raw[transport_hdr_len:]
+		'''else if (packet.next.protocol == ipv4.UDP_PROTOCOL) :
+        		print "*"*20
+        		print packet.next.next.raw[20:]
+        		print "*"*20
+        		data = packet.next.next.raw[20:]
+		'''
         	self.timer = data[:1] #Sumit: changed the value from data[:2] to data[:1] as timer is only 1 byte
         	print "Timer -", self.timer
         	self.tot_srvc = data[1:2] #Sumit: service length is only 1 byte
