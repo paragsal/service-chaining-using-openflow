@@ -375,6 +375,7 @@ class Switch (EventMixin):
     print "inside _install_path_new"
     for sw,in_port,out_port in p:
       self._install(sw, in_port, out_port, match)
+      self._install(sw, out_port,in_port,match.flip()) #installing path in reverse direction from host B to host A
 #      msg = of.ofp_barrier_request()
 #      sw.connection.send(msg)
 #      wp.add_xid(sw.dpid,msg.xid)
@@ -394,7 +395,7 @@ class Switch (EventMixin):
     print p
     if p is None:
       log.warning("Can't get from %s to %s", match.dl_src, match.dl_dst)
-
+sumit
       import pox.lib.packet as pkt
 
       if (match.dl_type == pkt.ethernet.IP_TYPE and
@@ -439,9 +440,9 @@ class Switch (EventMixin):
 
     # Now reverse it and install it backwards
     # (we'll just assume that will work)
-#Sumit : We don't need a reverse path in our case as packets are fowarded in Service basis and not simple src->dest basis
-#    p = [(sw,out_port,in_port) for sw,in_port,out_port in p]
-#    self._install_path(p, match.flip())
+#Sumit : We  need a reverse path for getting the packets like acks, etc from host B to host A
+    p = [(sw,out_port,in_port) for sw,in_port,out_port in p]
+    self._install_path(p, match.flip())
  
 #*********************Added by Sumit to get intermediate switched between service switch ***************
 # ???????????????? indentation needs to be checked before testing ???????????????
