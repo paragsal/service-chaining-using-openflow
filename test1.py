@@ -214,11 +214,11 @@ def fetch_service_info(serv_arr):
   if len(path_map) == 0: _calc_paths()
   service_switch=[]
   service_port=[]   #port to which VM is connected with service switch
-  db = MySQLdb.connect("localhost","testuser","test623","testdb1" )
+  db = MySQLdb.connect("localhost","root","root","test1" )
     # prepare a cursor object using cursor() method
   cursor = db.cursor()
   while i<length:
-    cursor.execute("SELECT SWITCH FROM CONTROLLER WHERE SERVICE=%s",(serv_arr[i]))
+    cursor.execute("SELECT SWITCH FROM CONTROLLER1 WHERE SERVICE=%s",(serv_arr[i]))
     row=cursor.fetchone()
 #    switch_list=row[0] 
     switch_list=row[0].split(',')
@@ -229,7 +229,7 @@ def fetch_service_info(serv_arr):
     print row
     print row[0]
 #assuming all VMs are connected to service swithces through same ports
-    cursor.execute("SELECT PORT FROM CONTROLLER WHERE SERVICE=%s",(serv_arr[i]))
+    cursor.execute("SELECT PORT FROM CONTROLLER1 WHERE SERVICE=%s",(serv_arr[i]))
     row_port=cursor.fetchone()
     service_port.append(int(row_port[0]))
     j=0
@@ -348,6 +348,7 @@ class Switch (EventMixin):
 
   def _install (self, switch, in_port, out_port, match, buf = None):
     print "inside _install"
+    print "IN PORT ********** ",in_port
     msg = of.ofp_flow_mod()
     msg.match = match
     msg.match.in_port = in_port
@@ -445,7 +446,7 @@ class Switch (EventMixin):
 #*********************Added by Sumit to get intermediate switched between service switch ***************
 # ???????????????? indentation needs to be checked before testing ???????????????
   def install_path_new(self,src_sw, dst_sw, first_port, last_port, match):
-    print "inside install_path_new*******************"
+    print "inside install_path_new*******************",first_port
     p = _get_path(src_sw, dst_sw, first_port, last_port)
     if p is None:
       log.warning("Can't get from %s to %s", match.dl_src, match.dl_dst)
@@ -482,30 +483,49 @@ class Switch (EventMixin):
     packet = event.parsed
 #*************changes made by mahendra ****************/
     self.service_name_array = [];
+    ethr_hdr_len = packet.hdr_len
     
-    if packet.type != ethernet.ARP_TYPE :
+    print "Ethernet Payload length ->",packet.payload_len
+    if packet.type != ethernet.ARP_TYPE:
         #if packet.type == ethernet.IP_TYPE and packet.payload_len >= 60:
         #Skip Minimum length packet which doesn't contain any data
-        print packet.next.dstip
+
+    	ip_hdr_len = packet.next.hl *4
+
+	if packet.next.protocol !=ipv4.ICMP_PROTOCOL:
+		#Check if it is TCP SYN, SYN+ACK, or ACK packets
+		if (packet.next.protocol == ipv4.TCP_PROTOCOL) :
+			if packet.next.next.SYN or packet.next.next.ACK or packet.next.next.FIN or packet.next.next.RST :
+				print ">>>>TCP Connection establishment message Observed <<<<<"	
+				if (packet.next.next.payload_len == 0) :
+					print "%%%% No Payload %%%"
+					flood()
+					return
+
+    		transport_hdr_len = packet.next.next.hdr_len
+    		tot_hl = ethr_hdr_len + ip_hdr_len + transport_hdr_len
+    		print "Total header length ->", tot_hl
+    		print "Ethernet Payload length ->",packet.payload_len
+        	print packet.next.dstip
         
-        print "*"*20
-        print packet.next.next.raw[8:]
-        print "*"*20
-        data = packet.next.next.raw[8:]
-        self.timer = data[:1] #Sumit: changed the value from data[:2] to data[:1] as timer is only 1 byte
-        print "Timer -", self.timer
-        self.tot_srvc = data[1:2] #Sumit: service length is only 1 byte
-        print " Total Service -",self.tot_srvc
-        data = data[2:] #Sumit:
+        	print "*"*20
+        	print packet.next.next.raw[8:]
+        	print "*"*20
+        	data = packet.next.next.raw[8:]
+        	self.timer = data[:1] #Sumit: changed the value from data[:2] to data[:1] as timer is only 1 byte
+        	print "Timer -", self.timer
+        	self.tot_srvc = data[1:2] #Sumit: service length is only 1 byte
+        	print " Total Service -",self.tot_srvc
+        	data = data[2:] #Sumit:
 
-        j=0;
+        	j=0;
 
-        for i in range(0,int(self.tot_srvc)) :
-           self.service_name_array.append(data[j:j+2] ); 
-           j+=2
-           print self.service_name_array[i]
+        	for i in range(0,int(self.tot_srvc)) :
+           		self.service_name_array.append(data[j:j+2] ); 
+           		j+=2
+           		print self.service_name_array[i]
 
-        data = data[:j] 
+        	data = data[:j] 
 
 #*****************changes made by mahendra ends here *****************
 
