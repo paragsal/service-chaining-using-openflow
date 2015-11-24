@@ -250,7 +250,8 @@ def fetch_service_info(serv_arr):
         sw1=1
       else:
         sw1=int(service_switch[i-1])
-        mini=1111110  #some random large value            
+
+      mini=1111110  #some random large value            
 #????? assuming that path_map has already been generated, need to check if path_map[][DPID]takes DPID or mac addresses as keys
       while j<len_row:                          
         if mini>path_map[switches[sw1]][switches[int(switch_list[j])]][0]: #finding the switch closest to last service switch
@@ -527,11 +528,11 @@ class Switch (EventMixin):
         		print "*"*20
         		data = packet.next.next.raw[20:]
 		'''
-        	self.timer = data[:1] #Sumit: changed the value from data[:2] to data[:1] as timer is only 1 byte
+        	self.timer = data[:3] #Sumit: changed the value from data[:2] to data[:1] as timer is only 1 byte
         	print "Timer -", self.timer
-        	self.tot_srvc = data[1:2] #Sumit: service length is only 1 byte
+        	self.tot_srvc = data[3:4] 
         	print " Total Service -",self.tot_srvc
-        	data = data[2:] #Sumit:
+        	data = data[4:] 
 
         	j=0;
 
