@@ -64,6 +64,12 @@ FLOOD_HOLDDOWN = 5
 FLOW_IDLE_TIMEOUT = 1000
 FLOW_HARD_TIMEOUT = 3000
 
+#
+ENCODER_VM_PORT = 5
+TRANSCODER_TO_SWITCH_PORT = 4
+TRANSCODER_SERVICE_SWITCH_DPID = 4
+HOSTA_ADDR='10.0.0.1'
+HOSTB_ADDR='10.0.0.2'
 # How long is allowable to set up a path?
 PATH_SETUP_TIME = 4
 
@@ -363,6 +369,9 @@ class Switch (EventMixin):
     msg.hard_timeout = FLOW_HARD_TIMEOUT
     msg.actions.append(of.ofp_action_output(port = out_port))
     msg.buffer_id = buf
+    if in_port==TRANSCODER_TO_SWITCH_PORT and switch.dpid==TRANSCODER_SERVICE_SWITCH_DPID and match.nw_dst==HOSTB_ADDR:
+      msg.actions.append(of.ofp_action_nw_addr.set_src(HOSTA_ADDR))
+      msg.actions.append(of.ofp_action_nw_addr.set_dst(HOSTB_ADDR))
     switch.connection.send(msg)
     print "******message sent to switch:"
     print switch
@@ -515,18 +524,11 @@ class Switch (EventMixin):
     		print "Total header length ->", tot_hl
     		print "Ethernet Payload length ->",packet.payload_len
         	print packet.next.dstip
-
-       		#if (packet.next.protocol == ipv4.TCP_PROTOCOL) : 
+        
         	print "*"*20
-        	print packet.next.next.raw[transport_hdr_len:]
+        	print packet.next.next.raw[8:]
         	print "*"*20
-        	data = packet.next.next.raw[transport_hdr_len:]
-		'''else if (packet.next.protocol == ipv4.UDP_PROTOCOL) :
-        		print "*"*20
-        		print packet.next.next.raw[20:]
-        		print "*"*20
-        		data = packet.next.next.raw[20:]
-		'''
+        	data = packet.next.next.raw[8:]
         	self.timer = data[:1] #Sumit: changed the value from data[:2] to data[:1] as timer is only 1 byte
         	print "Timer -", self.timer
         	self.tot_srvc = data[1:2] #Sumit: service length is only 1 byte
@@ -603,6 +605,11 @@ class Switch (EventMixin):
         print "serv_switch and serv_port"
         print serv_switch
         print serv_switch[0]
+        print "&&&&&&&&&&&&&&&&&&&ipv4 header@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@"
+        print packet.next.v
+        print packet.next.csum
+        print packet.next.dstip
+        print packet.next.srcip
 #        print dpid_to_str(serv_switch[0])
 
 #        print switches[00-00-00-00-00-01]          
