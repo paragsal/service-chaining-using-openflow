@@ -65,13 +65,14 @@ FLOW_IDLE_TIMEOUT = 1000
 FLOW_HARD_TIMEOUT = 3000
 
 #
-#ENCODER_VM_PORT = 5
-TRANSCODER_TO_SWITCH_PORT = 2
+ENCODER_VM_PORT = 5
+TRANSCODER_TO_SWITCH_PORT = 4
 SWITCH_TO_TRANSCODER_PORT = 2
-TRANSCODER_SERVICE_SWITCH_DPID = 5 
+TRANSCODER_SERVICE_SWITCH_DPID = 4
 HOSTA_ADDR='10.0.0.1'
 HOSTB_ADDR='10.0.0.2'
 TRANSCODER_VM_IP='10.0.0.4'
+
 # How long is allowable to set up a path?
 PATH_SETUP_TIME = 4
 
@@ -221,12 +222,13 @@ def fetch_service_info(serv_arr):
     print key
   if len(path_map) == 0: _calc_paths()
   service_switch=[]
-  service_port=[]   #port to which VM is connected with service switch
-  db = MySQLdb.connect("localhost","root","root","test1" )
+  service_in_port=[]   # port in switch through which packets go  to VM  
+  service_out_port=[]   #port of switch through which packets come from VM 
+  db = MySQLdb.connect("localhost","root","root","test2" )
     # prepare a cursor object using cursor() method
   cursor = db.cursor()
   while i<length:
-    cursor.execute("SELECT SWITCH FROM CONTROLLER1 WHERE SERVICE=%s",(serv_arr[i]))
+    cursor.execute("SELECT SWITCH FROM CONTROLLER2 WHERE SERVICE=%s",(serv_arr[i]))
     row=cursor.fetchone()
 #    switch_list=row[0] 
     switch_list=row[0].split(',')
@@ -237,21 +239,25 @@ def fetch_service_info(serv_arr):
     print row
     print row[0]
 #assuming all VMs are connected to service swithces through same ports
-    cursor.execute("SELECT PORT FROM CONTROLLER1 WHERE SERVICE=%s",(serv_arr[i]))
-    row_port=cursor.fetchone()
-    port_list=row_port[0].split(',')
+    cursor.execute("SELECT OUTPORT FROM CONTROLLER2 WHERE SERVICE=%s",(serv_arr[i]))
+    row_out_port=cursor.fetchone()
+    cursor.execute("SELECT INPORT FROM CONTROLLER2 WHERE SERVICE=%s",(serv_arr[i]))
+    row_in_port=cursor.fetchone()
+    out_port_list=row_out_port[0].split(',')
+    in_port_list=row_in_port[0].split(',')
 #    service_port.append(int(row_port[0]))
     print "len port list"
-    print len(port_list)
-    print "row_port[0]"
-    print row_port[0]
-    print "port list is"
-    print port_list
+    print len(out_port_list)
+    print "row_out_port[0]"
+    print row_out_port[0]
+    print "out_port list is"
+    print out_port_list
     j=0
     k=0
     if len_row == 1:
       service_switch.append(int(row[0]))
-      service_port.append(int(row_port[0]))    #it has to be included as different switches may be connected to VMs via different ports
+      service_out_port.append(int(row_out_port[0]))    #it has to be included as different switches may be connected to VMs via different ports
+      service_in_port.append(int(row_in_port[0]))
     elif len_row > 1:                 #if more than one service switch available, then find nearest switch and append it to service_switch
       if i==0:
 #        sw1=self
@@ -271,16 +277,17 @@ def fetch_service_info(serv_arr):
       print "minimum distance switch and value of j "
       print k,j,mini   
       service_switch.append(int(switch_list[k]))
-      service_port.append(int(port_list[k]))
+      service_out_port.append(int(out_port_list[k]))
+      service_in_port.append(int(in_port_list[k]))
 #      print service_switch                    
 #      print service_port      
     i=i+1
   db.close() 
   print 'printing service switch'
   print service_switch
-  print 'service port'
-  print service_port 
-  return service_switch, service_port
+  print 'service out port'
+  print service_out_port 
+  return service_switch, service_out_port,service_in_port
           
 #**********changes by Sumit till here *************************   
   
@@ -372,16 +379,22 @@ class Switch (EventMixin):
     msg.hard_timeout = FLOW_HARD_TIMEOUT
     msg.actions.append(of.ofp_action_output(port = out_port))
     msg.buffer_id = buf
+#    switch.connection.send(msg)
+    print "src , destination are,output port",match.nw_src
+    print match.nw_dst
+    print out_port
 #Below lines may be needed if we want to change dst_ip address of packets towards host B to ip address of TRANSCODER VM
     if out_port==SWITCH_TO_TRANSCODER_PORT and switch.dpid==TRANSCODER_SERVICE_SWITCH_DPID and match.nw_dst==HOSTB_ADDR:
       msg.actions.append(of.ofp_action_nw_addr.set_dst(TRANSCODER_VM_IP))
+      print "$$$$$$$$$$$$$$$$$$$$$$ sending towards transcoder with changed dest addr &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&"
+    
     if in_port==TRANSCODER_TO_SWITCH_PORT and switch.dpid==TRANSCODER_SERVICE_SWITCH_DPID and match.nw_dst==HOSTB_ADDR:
       msg.actions.append(of.ofp_action_nw_addr.set_src(HOSTA_ADDR))
-      msg.actions.append(of.ofp_action_nw_addr.set_dst(HOSTB_ADDR))
+#      msg.actions.append(of.ofp_action_nw_addr.set_dst(HOSTB_ADDR)) 
     switch.connection.send(msg)
     print "******message sent to switch:"
     print switch
-
+    
   def _install_path (self, p, match, packet_in=None):
     print "inside _install_path"
     wp = WaitingPath(p, packet_in)
@@ -607,12 +620,13 @@ class Switch (EventMixin):
       else:
 #*****************changes made by Sumit **********************
         serv_switch=[]
-        serving_port=[]
+        serv_out_port=[]
+        serv_in_port=[]
         if len(self.service_name_array) ==0:
                 flood()
                 return;
 
-        serv_switch, serving_port=fetch_service_info(self.service_name_array)
+        serv_switch, serv_out_port,serv_in_port=fetch_service_info(self.service_name_array)
         
         print "serv_switch and serv_port"
         print serv_switch
@@ -625,7 +639,7 @@ class Switch (EventMixin):
 #        print dpid_to_str(serv_switch[0])
 
 #        print switches[00-00-00-00-00-01]          
-        print serving_port          
+#        print serving_port          
         dest = mac_map[packet.dst]
         len_serv_switch=len(serv_switch)
 #               serv_switch.append(dest[0])
@@ -633,14 +647,15 @@ class Switch (EventMixin):
 #               port_serv_switch=adjacency[serv_switch[0]][self]                #port at serv_switch[0] to connect to this switch
 #               len_serv_switch=len(serv_switch)
         match = of.ofp_match.from_packet(packet)
-        self.install_path(switches[serv_switch[0]],serving_port[0], match, event) #in case only one serv_switch, install path to it and then to dest
+        self.install_path(switches[serv_switch[0]],serv_out_port[0], match, event) #in case only one serv_switch, install path to it and then to dest
         i=0
+        
         if len_serv_switch>1: #install flow on all service switches and destination in case of more than 1 service switch
           while i<len_serv_switch-1:
-            self.install_path_new(switches[serv_switch[i]],switches[serv_switch[i+1]],serving_port[i],serving_port[i+1],match)
-            i=i+1
+            self.install_path_new(switches[serv_switch[i]],switches[serv_switch[i+1]],serv_in_port[i],serv_out_port[i+1],match)
+            i=i+1  
 #          self.install_path_new(switches[serv_switch[i]],dest[0],serving_port[i],dest[1], match)
-        self.install_path_new(switches[serv_switch[i]],dest[0],serving_port[i],dest[1],match)  
+        self.install_path_new(switches[serv_switch[i]],dest[0],serv_in_port[i],dest[1],match)  
 #******************Changes till here *****************************
 
   def disconnect (self):
