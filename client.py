@@ -1,132 +1,123 @@
-#include<stdlib.h>
-#include<string.h>
-#include <stdio.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <netdb.h>
-#include <stdlib.h>
-#include <sys/types.h>
+#!/usr/bin/python
+#import pexpect
+import os
+import time
 
-void string_reverse(char * string_sid)
-{
+import socket
+import sys
 
-   char temp[100];
-   int i =0;
-/*   while (string_sid[i] != '\0') {
-        
-        temp[i] = string_sid[i] ;
-        i++;
-   }
-  temp[i]='\0';
-*/
+# Create a UDP socket
+sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+sock.bind(('10.0.0.1' ,33330))
 
-  strcpy(temp, string_sid);
+server_address = ('10.0.0.2', 30000)
+message = 'This is the message.  It will be repeated.'
 
-  //printf("%s \n", temp);
-  //exit(0);
-  i=strlen(temp);
-  int j=0;
- 
-   bzero(string_sid, strlen(temp)+1); 
-  //string_sid[strlen(temp)]='\0'; 
-  --i; 
-  for (j=0;j<strlen(temp); j++) {
-     string_sid[i]= temp[j];
-     //printf("\n%c", string_sid[i]);
-     i--;
-  }
+def timerInput():
+        print "Enter the required timer value between 100 and 999:"
+        t_serv1 = raw_input()
+        if (int(t_serv1)<100):
+                print "Timer value too less. Enter a larger value:"
+                t_serv=1
+                return t_serv
+
+        elif (int(t_serv1)>999):
+                print "Timer value too large. Enter a smaller value:"
+                t_serv=1
+                return t_serv
+        else:
+                t_serv = t_serv1
+                return t_serv
+
+t_serv=1
+
+while (t_serv==1):
+        t_serv = timerInput()
+
+print "Enter the number of services required"
+
+def servinput():
+        while 1:
+
+                num_of_services = raw_input()
+                if(int(num_of_services)>3):
+                        print "Required number of services exceed the maximum limit\nPlease Enter a valid number"
+                        continue
+                else:
+                        return num_of_services
+
+num_of_services = servinput()
+print num_of_services
+print "Enter the required services\n1.Firewall1: F1\n2.Firewall2: F2\n3.Transcoder: TC"
+
+signal = t_serv + num_of_services
+
+def sendTelnet():
+   while (1) :
+        ssh_newkey = 'Are you sure you want to continue connecting'
+        p=pexpect.spawn('telnet 10.0.0.2')
+
+        i=p.expect([ssh_newkey,'password:',pexpect.EOF, ':','#'])
+        if i==3:
+                print "Telnet Requesting uname"
+                p.sendline('root')
+                p.expect([ssh_newkey,'password:',pexpect.EOF, ':','#'])
+        if i==0:
+                p.sendline('yes')
+                i=p.expect([ssh_newkey,'password:',pexpect.EOF])
+        if i==1:
+                p.sendline("Mahendra")
+                p.expect(pexpect.EOF)
+        if i==4:
+                print "Logged in to the remote host"
+                p.sendline('ls')
+                p.expect('#')
+        elif i==2:
+                print "Sorry!.. Connection timedout.. Not able to connect to the remote host"
+
+        pass
+
+        print p.before
+        sys.sleep(1)
 
 
-/*   i=0;
-   for (j=strlen(temp);j>=0; j--) {
-      
-     string_sid[i]= temp[j];
-     i++;
-
-   } 
-*/
-
-//  string_sid[i]='\0';
-  
-  //printf("IN %s\n", string_sid);
-  
-}
-
-int main(int argc, char**argv)
-{
-
-   printf("Main Beg\n");
-   int sockfd,n;
-   char *Name = "Mahendra";
-   struct sockaddr_in servaddr,cliaddr;
-   char sendline[1000];
- 
-   char recvline[1000];
-   char ncsu[5]="NCSU";
-   long sid = 200107280;
-   char string_sid[20];
-   char ip[16] ="127.0.0.1";
-   char *str1 ="CSC453-001 2015"  ; 
-
-   bzero(sendline, 1000);
-
-   if (argc != 2)
-   {
-      printf("usage:  %s <IP address>\n",argv[0]);
-      exit(1);
-   }
+def serv_input():
+        y=1
+        while y:
+                x = raw_input()
+                if (x=="F1" or x=="F2" or x=="TC"):
+                        return x
+                        y=0
+                else:
+                        print "Enter a valid service"
 
 
-   
-   sockfd=socket(AF_INET,SOCK_DGRAM,0);
+for i in range(0,int(num_of_services)):
+        x = serv_input()
+        signal = signal+x
 
-   bzero(&servaddr,sizeof(servaddr));
-   servaddr.sin_family = AF_INET;
-   servaddr.sin_addr.s_addr=inet_addr(argv[1]);
-   servaddr.sin_port=htons(8222);
 
-   
-   printf("After assignment\n");
+try:
 
-int s;
-   struct sockaddr_in sa;
-   int sa_len;
-   int j;
+    # Send data
+    message=signal
+    count =0
+    print >>sys.stderr, 'sending "%s"' % message
+    for count in range(3):
+        sent = sock.sendto(message, server_address)
 
-   sendline[0]= '1';
-   sendline[1]= '2';
-   sendline[2] = 'E';
-   sendline[3] = 'H';
+    time.sleep(1)
+    message ="Hi................."
+    for count in range(100):
+        sent = sock.sendto(message, server_address)
+    # Receive response
+    #print >>sys.stderr, 'waiting to receive'
+    #data, server = sock.recvfrom(4096)
+    #sendTelnet()
+    #print >>sys.stderr, 'received "%s"' % data
 
-   sendline[4] = 'E';
-   sendline[5] = 'I';
-
-/*   for (j=0; j<strlen(Name);j++) {
-      sendline[i+j]= Name[j];
-   }
-   sendline[i+j]='\0';
-*/
-//i+=j;
-  // sendline[i++]='\0';
-    
-/*   for (j=0; j< strlen(string_sid);j++) {
-      sendline[i+j]=string_sid[j];
-   }
-*/ 
-/*   char *ptr = &(sendline[i]);
-   memcpy((void *)ptr, (void *)string_sid, strlen(string_sid));  
-  
-   i+=strlen(string_sid);
-*/   
-   printf("\nBef\n");
-   printf("SEND LINE %s\n", sendline);
-   printf("After\n");
-      sendto(sockfd,sendline,1000,0,
-             (struct sockaddr *)&servaddr,sizeof(servaddr));
-      n=recvfrom(sockfd,recvline,10000,0,NULL,NULL);
-      recvline[n]=0;
-      printf("\n Received from server: \n");
-      fputs(recvline,stdout);
-      printf("Enter string to send:\n");
-}
+    time.sleep(5)
+finally:
+    print >>sys.stderr, 'closing socket'
+    sock.close()
 
