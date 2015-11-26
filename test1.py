@@ -377,7 +377,7 @@ class Switch (EventMixin):
     msg.match.in_port = in_port
     msg.idle_timeout = FLOW_IDLE_TIMEOUT
     msg.hard_timeout = FLOW_HARD_TIMEOUT
-    msg.actions.append(of.ofp_action_output(port = out_port))
+#    msg.actions.append(of.ofp_action_output(port = out_port))
     msg.buffer_id = buf
 #    switch.connection.send(msg)
     print "src , destination are,output port",match.nw_src
@@ -391,6 +391,8 @@ class Switch (EventMixin):
     if in_port==TRANSCODER_TO_SWITCH_PORT and switch.dpid==TRANSCODER_SERVICE_SWITCH_DPID and match.nw_dst==HOSTB_ADDR:
       msg.actions.append(of.ofp_action_nw_addr.set_src(HOSTA_ADDR))
 #      msg.actions.append(of.ofp_action_nw_addr.set_dst(HOSTB_ADDR)) 
+
+    msg.actions.append(of.ofp_action_output(port = out_port))
     switch.connection.send(msg)
     print "******message sent to switch:"
     print switch
