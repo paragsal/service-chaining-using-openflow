@@ -65,11 +65,13 @@ FLOW_IDLE_TIMEOUT = 1000
 FLOW_HARD_TIMEOUT = 3000
 
 #
-ENCODER_VM_PORT = 5
-TRANSCODER_TO_SWITCH_PORT = 4
-TRANSCODER_SERVICE_SWITCH_DPID = 4
+#ENCODER_VM_PORT = 5
+TRANSCODER_TO_SWITCH_PORT = 2
+SWITCH_TO_TRANSCODER_PORT = 2
+TRANSCODER_SERVICE_SWITCH_DPID = 5 
 HOSTA_ADDR='10.0.0.1'
 HOSTB_ADDR='10.0.0.2'
+TRANSCODER_VM_IP='10.0.0.4'
 # How long is allowable to set up a path?
 PATH_SETUP_TIME = 4
 
@@ -370,6 +372,9 @@ class Switch (EventMixin):
     msg.hard_timeout = FLOW_HARD_TIMEOUT
     msg.actions.append(of.ofp_action_output(port = out_port))
     msg.buffer_id = buf
+#Below lines may be needed if we want to change dst_ip address of packets towards host B to ip address of TRANSCODER VM
+    if out_port==SWITCH_TO_TRANSCODER_PORT and switch.dpid==TRANSCODER_SERVICE_SWITCH_DPID and match.nw_dst==HOSTB_ADDR:
+      msg.actions.append(of.ofp_action_nw_addr.set_dst(TRANSCODER_VM_IP))
     if in_port==TRANSCODER_TO_SWITCH_PORT and switch.dpid==TRANSCODER_SERVICE_SWITCH_DPID and match.nw_dst==HOSTB_ADDR:
       msg.actions.append(of.ofp_action_nw_addr.set_src(HOSTA_ADDR))
       msg.actions.append(of.ofp_action_nw_addr.set_dst(HOSTB_ADDR))
