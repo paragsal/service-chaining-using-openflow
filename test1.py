@@ -61,17 +61,22 @@ waiting_paths = {}
 FLOOD_HOLDDOWN = 5
 
 # Flow timeouts
-FLOW_IDLE_TIMEOUT = 1000
-FLOW_HARD_TIMEOUT = 3000
+FLOW_IDLE_TIMEOUT = 100
+FLOW_HARD_TIMEOUT = 100
 
 #
 ENCODER_VM_PORT = 5
 TRANSCODER_TO_SWITCH_PORT = 4
+FIREWALL_TO_SWITCH_PORT = 1
 SWITCH_TO_TRANSCODER_PORT = 2
+SWITCH_TO_FIREWALL_PORT = 5
 TRANSCODER_SERVICE_SWITCH_DPID = 4
+FIREWALL_SERVICE_SWITCH_DPID = 4
 HOSTA_ADDR='10.0.0.1'
-HOSTB_ADDR='10.0.0.2'
+HOSTB_ADDR='10.0.0.3'
 TRANSCODER_VM_IP='10.0.0.4'
+FIREWALL_VM_IP='11.0.1.4'
+FIREWALL_SUB_IP='11.0.1.11'
 
 # How long is allowable to set up a path?
 PATH_SETUP_TIME = 4
@@ -390,7 +395,14 @@ class Switch (EventMixin):
     
     if in_port==TRANSCODER_TO_SWITCH_PORT and switch.dpid==TRANSCODER_SERVICE_SWITCH_DPID and match.nw_dst==HOSTB_ADDR:
       msg.actions.append(of.ofp_action_nw_addr.set_src(HOSTA_ADDR))
+
+    if out_port==SWITCH_TO_FIREWALL_PORT and switch.dpid==FIREWALL_SERVICE_SWITCH_DPID and match.nw_dst==HOSTB_ADDR:
+      msg.actions.append(of.ofp_action_nw_addr.set_src(FIREWALL_SUB_IP))
 #      msg.actions.append(of.ofp_action_nw_addr.set_dst(HOSTB_ADDR)) 
+
+    if in_port==FIREWALL_TO_SWITCH_PORT and switch.dpid==FIREWALL_SERVICE_SWITCH_DPID and match.nw_dst==HOSTB_ADDR:
+      msg.actions.append(of.ofp_action_nw_addr.set_src(HOSTA_ADDR))
+
 
     msg.actions.append(of.ofp_action_output(port = out_port))
     switch.connection.send(msg)
@@ -625,6 +637,7 @@ class Switch (EventMixin):
         serv_out_port=[]
         serv_in_port=[]
         if len(self.service_name_array) ==0:
+		log.debug( "Srvc Name Array Len is zero...")
                 flood()
                 return;
 
