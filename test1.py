@@ -91,8 +91,8 @@ def _calc_paths ():
   """
 
   def dump ():
-    print "check********************"
-    print path_map[1][2][0]
+    #print "check********************"
+    #print path_map[1][2][0]
     for i in sws:
       for j in sws:
 #        print "value of i,j in sws"
@@ -102,25 +102,17 @@ def _calc_paths ():
         b = path_map[i][j][1]
         if a is None: a = "*"
 #    print "path_map[0] : distance between switches" 
-        print a,
-      print
+        #print a,
+      #print
         
 #    print "mac_map"
 #    for key in mac_map:
 #      print key
 #      print mac_map[key]
   print "check"      
-  print path_map[00-00-00-00-00-01][00-00-00-00-00-02][0]
   sws = switches.values()
   path_map.clear()
   print "*******************path_map cleared***********************"
-  print "adjacency values"
-#  print adjacency[00-00-00-00-00-01][00-00-00-00-00-02][0]
-  for key in adjacency:
-    print key,adjacency[key]
-  print "printing switches dict"
-  for key in switches:
-    print key,switches[key]
   for k in sws:
     for j,port in adjacency[k].iteritems():
       if port is None: continue
@@ -191,20 +183,17 @@ def _get_path (src, dst, first_port, final_port):
     path = [src]
   else:
     path = _get_raw_path(src, dst)
-    print "before return in get_path***************"
-    print "length of path_map is "
     print len(path_map)
-    for key in path_map:
-      print key,path_map[key]
-    print path_map[src][dst][0]
-    print path_map[src][dst][1]
-    print path_map[00-00-00-00-00-01][00-00-00-00-00-03][0]
-    print path
-    print src
-    print dst
+    #for key in path_map:
+      #print key,path_map[key]
+    #print path_map[src][dst][0]
+    #print path_map[src][dst][1]
+    #print path_map[00-00-00-00-00-01][00-00-00-00-00-03][0]
+    #print path
+    #print src
+    #print dst
     if path is None: return None
     path = [src] + path + [dst]
-  print"path from src to dst in _get_path"
   print path 
   # Now add the ports
   r = []
@@ -223,11 +212,9 @@ def _get_path (src, dst, first_port, final_port):
 def fetch_service_info(serv_arr):
   length=len(serv_arr)
   i=0
-  print "@@@@@@@@@@@@@@@@@@@@@@@@@@@serv array is " 
-  print serv_arr
-  for key in switches:
-    print switches[key]
-    print key
+  #for key in switches:
+    #print switches[key]
+    #print key
   if len(path_map) == 0: _calc_paths()
   service_switch=[]
   service_in_port=[]   # port in switch through which packets go  to VM  
@@ -241,11 +228,6 @@ def fetch_service_info(serv_arr):
 #    switch_list=row[0] 
     switch_list=row[0].split(',')
     len_row=len(switch_list)
-    print "len row"
-    print len_row
-    print "switches are:"
-    print row
-    print row[0]
 #assuming all VMs are connected to service swithces through same ports
     cursor.execute("SELECT OUTPORT FROM CONTROLLER2 WHERE SERVICE=%s",(serv_arr[i]))
     row_out_port=cursor.fetchone()
@@ -254,12 +236,6 @@ def fetch_service_info(serv_arr):
     out_port_list=row_out_port[0].split(',')
     in_port_list=row_in_port[0].split(',')
 #    service_port.append(int(row_port[0]))
-    print "len port list"
-    print len(out_port_list)
-    print "row_out_port[0]"
-    print row_out_port[0]
-    print "out_port list is"
-    print out_port_list
     j=0
     k=0
     if len_row == 1:
@@ -279,11 +255,7 @@ def fetch_service_info(serv_arr):
         if mini>path_map[switches[sw1]][switches[int(switch_list[j])]][0]: #finding the switch closest to last service switch
           mini=path_map[switches[sw1]][switches[int(switch_list[j])]][0]    
           k=j
-        print "distance between sw1 and switch_lst[j]"
-        print path_map[switches[sw1]][switches[int(switch_list[j])]][0]  
         j=j+1
-      print "minimum distance switch and value of j "
-      print k,j,mini   
       service_switch.append(int(switch_list[k]))
       service_out_port.append(int(out_port_list[k]))
       service_in_port.append(int(in_port_list[k]))
@@ -291,10 +263,10 @@ def fetch_service_info(serv_arr):
 #      print service_port      
     i=i+1
   db.close() 
-  print 'printing service switch'
-  print service_switch
-  print 'service out port'
-  print service_out_port 
+  #print 'printing service switch'
+  #print service_switch
+  #print 'service out port'
+  #print service_out_port 
   return service_switch, service_out_port,service_in_port
           
 #**********changes by Sumit till here *************************   
@@ -383,7 +355,6 @@ class Switch (EventMixin):
     msg = of.ofp_flow_mod()
 
     if in_port==TRANSCODER_TO_SWITCH_PORT and switch.dpid==TRANSCODER_SERVICE_SWITCH_DPID and match.nw_dst==HOSTB_ADDR:
-      print "%%%%%%%%%%%%%%%%%%inside transcoder %%%%%%%%%%%"
       msg1 =of.ofp_flow_mod()
       #msg1.match.dl_src=EthAddr("8e:f0:0d:59:7b:18")
       #msg1.match.dl_dst=EthAddr("ca:0b:cb:59:d8:1c")
@@ -399,7 +370,6 @@ class Switch (EventMixin):
       return
 
     elif in_port==FIREWALL_TO_SWITCH_PORT and switch.dpid==FIREWALL_SERVICE_SWITCH_DPID and match.nw_dst==HOSTB_ADDR:
-      print "%%%%%%%%%%%%%%%%%%inside transcoder %%%%%%%%%%%"
       msg1 =of.ofp_flow_mod()
       #msg1.match.dl_src=EthAddr("8e:f0:0d:59:7b:18")
       #msg1.match.dl_dst=EthAddr("ca:0b:cb:59:d8:1c")
@@ -423,20 +393,17 @@ class Switch (EventMixin):
 #    msg.actions.append(of.ofp_action_output(port = out_port))
    	msg.buffer_id = buf
 #    switch.connection.send(msg)
-    	print "@@@@@@@@@@@@@@@src , destination are,output port@@@@@@@@@@@",match.nw_src
-   	print match.nw_dst
-    	print msg.match.nw_dst
-    	print out_port
+   	#print match.nw_dst
+    	#print msg.match.nw_dst
+    	#print out_port
 #Below lines may be needed if we want to change dst_ip address of packets towards host B to ip address of TRANSCODER VM
     	if out_port==SWITCH_TO_TRANSCODER_PORT and switch.dpid==TRANSCODER_SERVICE_SWITCH_DPID and match.nw_dst==HOSTB_ADDR:
       		msg.actions.append(of.ofp_action_nw_addr.set_dst(TRANSCODER_VM_IP))
       		msg.actions.append(of.ofp_action_dl_addr.set_dst("8e:f0:0d:59:7b:18"))
-      		print "$$$$$$$$$$$$$$$$$$$$$$ sending towards transcoder with changed dest addr &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&"
     
         if out_port==SWITCH_TO_FIREWALL_PORT and switch.dpid==FIREWALL_SERVICE_SWITCH_DPID and match.nw_dst==HOSTB_ADDR:
                 msg.actions.append(of.ofp_action_nw_addr.set_dst(FIREWALL_VM_IP))
                 msg.actions.append(of.ofp_action_dl_addr.set_dst("8e:f0:0d:59:7b:18"))  #set mac address of flow to mac address of FIREWALL VM
-                print "$$$$$$$$$$$$$$$$$$$$$$ sending towards transcoder with changed dest addr &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&"
 
     	msg.actions.append(of.ofp_action_output(port = out_port))
     	switch.connection.send(msg)
@@ -468,12 +435,12 @@ class Switch (EventMixin):
     """
     Attempts to install a path between this switch and some destination
     """
-    print "inside install_path and switches in sequence are self,dst_sw,event.port,last_port"
-    print str(self)+" "+str(dst_sw)+" "+str(event.port)+" "+str(last_port)
+    #print "inside install_path and switches in sequence are self,dst_sw,event.port,last_port"
+    #print str(self)+" "+str(dst_sw)+" "+str(event.port)+" "+str(last_port)
     print "printing mac_map again"
-    for key in mac_map:
-      print key
-      print mac_map[key]
+    #for key in mac_map:
+      #print key
+      #print mac_map[key]
     p = _get_path(self, dst_sw, event.port, last_port)
     print p
     if p is None:
@@ -530,7 +497,6 @@ class Switch (EventMixin):
 #*********************Added by Sumit to get intermediate switched between service switch ***************
 # ???????????????? indentation needs to be checked before testing ???????????????
   def install_path_new(self,src_sw, dst_sw, first_port, last_port, match):
-    print "inside install_path_new*******************",first_port
     p = _get_path(src_sw, dst_sw, first_port, last_port)
     if p is None:
       log.warning("Can't get from %s to %s", match.dl_src, match.dl_dst)
@@ -588,8 +554,6 @@ class Switch (EventMixin):
 
     		transport_hdr_len = packet.next.next.hdr_len
     		tot_hl = ethr_hdr_len + ip_hdr_len + transport_hdr_len
-    		print "Total header length ->", tot_hl
-    		print "Ethernet Payload length ->",packet.payload_len
         	print packet.next.dstip
         
         	print "*"*20
@@ -676,14 +640,12 @@ class Switch (EventMixin):
 
         serv_switch, serv_out_port,serv_in_port=fetch_service_info(self.service_name_array)
         
-        print "serv_switch and serv_port"
         print serv_switch
-        print serv_switch[0]
-        print "&&&&&&&&&&&&&&&&&&&ipv4 header@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@"
-        print packet.next.v
-        print packet.next.csum
-        print packet.next.dstip
-        print packet.next.srcip
+        #print serv_switch[0]
+        #print packet.next.v
+        #print packet.next.csum
+        #print packet.next.dstip
+        #print packet.next.srcip
 #        print dpid_to_str(serv_switch[0])
 
 #        print switches[00-00-00-00-00-01]          
