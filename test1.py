@@ -61,22 +61,25 @@ waiting_paths = {}
 FLOOD_HOLDDOWN = 5
 
 # Flow timeouts
-FLOW_IDLE_TIMEOUT = 100
-FLOW_HARD_TIMEOUT = 100
+#FLOW_IDLE_TIMEOUT = 1000
+#FLOW_HARD_TIMEOUT = 3000
 
+FLOW_HARD_TIMEOUT = 1000
+FLOW_IDLE_TIMEOUT = 1000
 #
-ENCODER_VM_PORT = 5
-TRANSCODER_TO_SWITCH_PORT = 4
-FIREWALL_TO_SWITCH_PORT = 1
+TRANSCODER_TO_SWITCH_PORT = 2
 SWITCH_TO_TRANSCODER_PORT = 2
-SWITCH_TO_FIREWALL_PORT = 5
 TRANSCODER_SERVICE_SWITCH_DPID = 4
-FIREWALL_SERVICE_SWITCH_DPID = 4
 HOSTA_ADDR='10.0.0.1'
-HOSTB_ADDR='10.0.0.3'
-TRANSCODER_VM_IP='10.0.0.4'
-FIREWALL_VM_IP='11.0.1.4'
-FIREWALL_SUB_IP='11.0.1.11'
+HOSTB_ADDR='10.0.0.2'
+TRANSCODER_VM_IP='10.0.0.3'
+
+SWITCH_TO_FIREWALL_PORT = 3
+FIREWALL_SERVICE_SWITCH_DPID = 5
+FIREWALL_VM_IP = '10.0.0.5'
+FIREWALL_TO_SWITCH_PORT = 3
+
+
 
 # How long is allowable to set up a path?
 PATH_SETUP_TIME = 4
@@ -378,36 +381,67 @@ class Switch (EventMixin):
     print "inside _install"
     print "IN PORT ********** ",in_port
     msg = of.ofp_flow_mod()
-    msg.match = match
-    msg.match.in_port = in_port
-    msg.idle_timeout = FLOW_IDLE_TIMEOUT
-    msg.hard_timeout = FLOW_HARD_TIMEOUT
-#    msg.actions.append(of.ofp_action_output(port = out_port))
-    msg.buffer_id = buf
-#    switch.connection.send(msg)
-    print "src , destination are,output port",match.nw_src
-    print match.nw_dst
-    print out_port
-#Below lines may be needed if we want to change dst_ip address of packets towards host B to ip address of TRANSCODER VM
-    if out_port==SWITCH_TO_TRANSCODER_PORT and switch.dpid==TRANSCODER_SERVICE_SWITCH_DPID and match.nw_dst==HOSTB_ADDR:
-      msg.actions.append(of.ofp_action_nw_addr.set_dst(TRANSCODER_VM_IP))
-      print "$$$$$$$$$$$$$$$$$$$$$$ sending towards transcoder with changed dest addr &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&"
-    
+
     if in_port==TRANSCODER_TO_SWITCH_PORT and switch.dpid==TRANSCODER_SERVICE_SWITCH_DPID and match.nw_dst==HOSTB_ADDR:
-      msg.actions.append(of.ofp_action_nw_addr.set_src(HOSTA_ADDR))
+      print "%%%%%%%%%%%%%%%%%%inside transcoder %%%%%%%%%%%"
+      msg1 =of.ofp_flow_mod()
+      #msg1.match.dl_src=EthAddr("8e:f0:0d:59:7b:18")
+      #msg1.match.dl_dst=EthAddr("ca:0b:cb:59:d8:1c")
+      #msg1.match.nw_src=IPAddr("10.0.0.3")
+      #msg1.match.nw_dst=IPAddr("10.0.0.2")
+      msg1.actions.append(of.ofp_action_dl_addr.set_src("8a:3d:5a:6c:e3:fe")) #set src mac address to ip address of host A
+      msg1.actions.append(of.ofp_action_nw_addr.set_src(HOSTA_ADDR)) #set src ip address to ip address of host A
+      msg1.match.in_port=in_port
+      msg1.hard_timeout = FLOW_HARD_TIMEOUT
+      msg1.idle_timeout = FLOW_IDLE_TIMEOUT
+      msg1.actions.append(of.ofp_action_output(port = out_port))
+      switch.connection.send(msg1)
+      return
 
-    if out_port==SWITCH_TO_FIREWALL_PORT and switch.dpid==FIREWALL_SERVICE_SWITCH_DPID and match.nw_dst==HOSTB_ADDR:
-      msg.actions.append(of.ofp_action_nw_addr.set_src(FIREWALL_SUB_IP))
-#      msg.actions.append(of.ofp_action_nw_addr.set_dst(HOSTB_ADDR)) 
+    elif in_port==FIREWALL_TO_SWITCH_PORT and switch.dpid==FIREWALL_SERVICE_SWITCH_DPID and match.nw_dst==HOSTB_ADDR:
+      print "%%%%%%%%%%%%%%%%%%inside transcoder %%%%%%%%%%%"
+      msg1 =of.ofp_flow_mod()
+      #msg1.match.dl_src=EthAddr("8e:f0:0d:59:7b:18")
+      #msg1.match.dl_dst=EthAddr("ca:0b:cb:59:d8:1c")
+      #msg1.match.nw_src=IPAddr("10.0.0.3")
+      #msg1.match.nw_dst=IPAddr("10.0.0.2")
+      msg1.actions.append(of.ofp_action_dl_addr.set_src("8a:3d:5a:6c:e3:fe")) #set src mac address to ip address of host A
+      msg1.actions.append(of.ofp_action_nw_addr.set_src(HOSTA_ADDR)) #set src ip address to ip address of host A
+      msg1.match.in_port=in_port
+      msg1.hard_timeout = FLOW_HARD_TIMEOUT
+      msg1.idle_timeout = FLOW_IDLE_TIMEOUT
+      msg1.actions.append(of.ofp_action_output(port = out_port))
+      switch.connection.send(msg1)
+      return
 
-    if in_port==FIREWALL_TO_SWITCH_PORT and switch.dpid==FIREWALL_SERVICE_SWITCH_DPID and match.nw_dst==HOSTB_ADDR:
-      msg.actions.append(of.ofp_action_nw_addr.set_src(HOSTA_ADDR))
 
+    else:
+    	msg.match = match
+    	msg.match.in_port = in_port
+    	msg.idle_timeout = FLOW_IDLE_TIMEOUT
+    	msg.hard_timeout = FLOW_HARD_TIMEOUT
+#    msg.actions.append(of.ofp_action_output(port = out_port))
+   	msg.buffer_id = buf
+#    switch.connection.send(msg)
+    	print "@@@@@@@@@@@@@@@src , destination are,output port@@@@@@@@@@@",match.nw_src
+   	print match.nw_dst
+    	print msg.match.nw_dst
+    	print out_port
+#Below lines may be needed if we want to change dst_ip address of packets towards host B to ip address of TRANSCODER VM
+    	if out_port==SWITCH_TO_TRANSCODER_PORT and switch.dpid==TRANSCODER_SERVICE_SWITCH_DPID and match.nw_dst==HOSTB_ADDR:
+      		msg.actions.append(of.ofp_action_nw_addr.set_dst(TRANSCODER_VM_IP))
+      		msg.actions.append(of.ofp_action_dl_addr.set_dst("8e:f0:0d:59:7b:18"))
+      		print "$$$$$$$$$$$$$$$$$$$$$$ sending towards transcoder with changed dest addr &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&"
+    
+        if out_port==SWITCH_TO_FIREWALL_PORT and switch.dpid==FIREWALL_SERVICE_SWITCH_DPID and match.nw_dst==HOSTB_ADDR:
+                msg.actions.append(of.ofp_action_nw_addr.set_dst(FIREWALL_VM_IP))
+                msg.actions.append(of.ofp_action_dl_addr.set_dst("8e:f0:0d:59:7b:18"))  #set mac address of flow to mac address of FIREWALL VM
+                print "$$$$$$$$$$$$$$$$$$$$$$ sending towards transcoder with changed dest addr &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&"
 
-    msg.actions.append(of.ofp_action_output(port = out_port))
-    switch.connection.send(msg)
-    print "******message sent to switch:"
-    print switch
+    	msg.actions.append(of.ofp_action_output(port = out_port))
+    	switch.connection.send(msg)
+    	print "******message sent to switch:"
+   	print switch
     
   def _install_path (self, p, match, packet_in=None):
     print "inside _install_path"
@@ -637,7 +671,6 @@ class Switch (EventMixin):
         serv_out_port=[]
         serv_in_port=[]
         if len(self.service_name_array) ==0:
-		log.debug( "Srvc Name Array Len is zero...")
                 flood()
                 return;
 
