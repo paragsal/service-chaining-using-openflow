@@ -26,7 +26,7 @@ does (mostly) work. :)
 Depends on openflow.discovery
 Works with openflow.spanning_tree
 """
-import sys
+
 from pox.core import core
 import pox.openflow.libopenflow_01 as of
 from pox.lib.revent import *
@@ -34,11 +34,8 @@ from pox.lib.recoco import Timer
 from collections import defaultdict
 from pox.openflow.discovery import Discovery
 from pox.lib.util import dpid_to_str
-from pox.lib.packet import *
-import time
-import MySQLdb
-import socket, struct
 import pox.openflow.discovery
+import time
 
 log = core.getLogger()
 
@@ -61,25 +58,8 @@ waiting_paths = {}
 FLOOD_HOLDDOWN = 5
 
 # Flow timeouts
-#FLOW_IDLE_TIMEOUT = 1000
-#FLOW_HARD_TIMEOUT = 3000
-
-FLOW_HARD_TIMEOUT = 1000
-FLOW_IDLE_TIMEOUT = 1000
-#
-TRANSCODER_TO_SWITCH_PORT = 2
-SWITCH_TO_TRANSCODER_PORT = 2
-TRANSCODER_SERVICE_SWITCH_DPID = 4
-HOSTA_ADDR='10.0.0.1'
-HOSTB_ADDR='10.0.0.2'
-TRANSCODER_VM_IP='10.0.0.3'
-
-SWITCH_TO_FIREWALL_PORT = 3
-FIREWALL_SERVICE_SWITCH_DPID = 5
-FIREWALL_VM_IP = '10.0.0.5'
-FIREWALL_TO_SWITCH_PORT = 3
-
-
+FLOW_IDLE_TIMEOUT = 10
+FLOW_HARD_TIMEOUT = 30
 
 # How long is allowable to set up a path?
 PATH_SETUP_TIME = 4
@@ -91,28 +71,16 @@ def _calc_paths ():
   """
 
   def dump ():
-    #print "check********************"
-    #print path_map[1][2][0]
     for i in sws:
       for j in sws:
-#        print "value of i,j in sws"
-#        print i , j
         a = path_map[i][j][0]
-#        print path_map[00-00-00-00-00-01][00-00-00-00-00-02][0]
-        b = path_map[i][j][1]
+        #a = adjacency[i][j]
         if a is None: a = "*"
-#    print "path_map[0] : distance between switches" 
-        #print a,
-      #print
-        
-#    print "mac_map"
-#    for key in mac_map:
-#      print key
-#      print mac_map[key]
-  print "check"      
+        print a,
+      print
+
   sws = switches.values()
   path_map.clear()
-  print "*******************path_map cleared***********************"
   for k in sws:
     for j,port in adjacency[k].iteritems():
       if port is None: continue
@@ -132,22 +100,19 @@ def _calc_paths ():
               # i -> k -> j is better than existing
               path_map[i][j] = (ikj_dist, k)
 
-  print "--------------------"
-  dump()
+  #print "--------------------"
+  #dump()
 
 
 def _get_raw_path (src, dst):
   """
   Get a raw path (just a list of nodes to traverse)
   """
-  if len(path_map) == 0:
-    print "path_map is empty"
-    _calc_paths()
+  if len(path_map) == 0: _calc_paths()
   if src is dst:
     # We're here!
     return []
   if path_map[src][dst][0] is None:
-    print "path_map[src][dst][0] is None"
     return None
   intermediate = path_map[src][dst][1]
   if intermediate is None:
@@ -155,6 +120,7 @@ def _get_raw_path (src, dst):
     return []
   return _get_raw_path(src, intermediate) + [intermediate] + \
          _get_raw_path(intermediate, dst)
+
 
 def _check_path (p):
   """
@@ -175,26 +141,13 @@ def _get_path (src, dst, first_port, final_port):
   Gets a cooked path -- a list of (node,in_port,out_port)
   """
   # Start with a raw path...
-#  print "path_map:"
-#  for key in path_map:
-#    print key,path_map[key]
-    
   if src == dst:
     path = [src]
   else:
     path = _get_raw_path(src, dst)
-    print len(path_map)
-    #for key in path_map:
-      #print key,path_map[key]
-    #print path_map[src][dst][0]
-    #print path_map[src][dst][1]
-    #print path_map[00-00-00-00-00-01][00-00-00-00-00-03][0]
-    #print path
-    #print src
-    #print dst
     if path is None: return None
     path = [src] + path + [dst]
-  print path 
+
   # Now add the ports
   r = []
   in_port = first_port
@@ -208,69 +161,6 @@ def _get_path (src, dst, first_port, final_port):
 
   return r
 
-#**********function added by Sumit ***************   
-def fetch_service_info(serv_arr):
-  length=len(serv_arr)
-  i=0
-  #for key in switches:
-    #print switches[key]
-    #print key
-  if len(path_map) == 0: _calc_paths()
-  service_switch=[]
-  service_in_port=[]   # port in switch through which packets go  to VM  
-  service_out_port=[]   #port of switch through which packets come from VM 
-  db = MySQLdb.connect("localhost","root","root","test2" )
-    # prepare a cursor object using cursor() method
-  cursor = db.cursor()
-  while i<length:
-    cursor.execute("SELECT SWITCH FROM CONTROLLER2 WHERE SERVICE=%s",(serv_arr[i]))
-    row=cursor.fetchone()
-#    switch_list=row[0] 
-    switch_list=row[0].split(',')
-    len_row=len(switch_list)
-#assuming all VMs are connected to service swithces through same ports
-    cursor.execute("SELECT OUTPORT FROM CONTROLLER2 WHERE SERVICE=%s",(serv_arr[i]))
-    row_out_port=cursor.fetchone()
-    cursor.execute("SELECT INPORT FROM CONTROLLER2 WHERE SERVICE=%s",(serv_arr[i]))
-    row_in_port=cursor.fetchone()
-    out_port_list=row_out_port[0].split(',')
-    in_port_list=row_in_port[0].split(',')
-#    service_port.append(int(row_port[0]))
-    j=0
-    k=0
-    if len_row == 1:
-      service_switch.append(int(row[0]))
-      service_out_port.append(int(row_out_port[0]))    #it has to be included as different switches may be connected to VMs via different ports
-      service_in_port.append(int(row_in_port[0]))
-    elif len_row > 1:                 #if more than one service switch available, then find nearest switch and append it to service_switch
-      if i==0:
-#        sw1=self
-        sw1=1
-      else:
-        sw1=int(service_switch[i-1])
-
-      mini=1111110  #some random large value            
-#????? assuming that path_map has already been generated, need to check if path_map[][DPID]takes DPID or mac addresses as keys
-      while j<len_row:                          
-        if mini>path_map[switches[sw1]][switches[int(switch_list[j])]][0]: #finding the switch closest to last service switch
-          mini=path_map[switches[sw1]][switches[int(switch_list[j])]][0]    
-          k=j
-        j=j+1
-      service_switch.append(int(switch_list[k]))
-      service_out_port.append(int(out_port_list[k]))
-      service_in_port.append(int(in_port_list[k]))
-#      print service_switch                    
-#      print service_port      
-    i=i+1
-  db.close() 
-  #print 'printing service switch'
-  #print service_switch
-  #print 'service out port'
-  #print service_out_port 
-  return service_switch, service_out_port,service_in_port
-          
-#**********changes by Sumit till here *************************   
-  
 
 class WaitingPath (object):
   """
@@ -350,68 +240,16 @@ class Switch (EventMixin):
     return dpid_to_str(self.dpid)
 
   def _install (self, switch, in_port, out_port, match, buf = None):
-    print "inside _install"
-    print "IN PORT ********** ",in_port
     msg = of.ofp_flow_mod()
+    msg.match = match
+    msg.match.in_port = in_port
+    msg.idle_timeout = FLOW_IDLE_TIMEOUT
+    msg.hard_timeout = FLOW_HARD_TIMEOUT
+    msg.actions.append(of.ofp_action_output(port = out_port))
+    msg.buffer_id = buf
+    switch.connection.send(msg)
 
-    if in_port==TRANSCODER_TO_SWITCH_PORT and switch.dpid==TRANSCODER_SERVICE_SWITCH_DPID and match.nw_dst==HOSTB_ADDR:
-      msg1 =of.ofp_flow_mod()
-      #msg1.match.dl_src=EthAddr("8e:f0:0d:59:7b:18")
-      #msg1.match.dl_dst=EthAddr("ca:0b:cb:59:d8:1c")
-      #msg1.match.nw_src=IPAddr("10.0.0.3")
-      #msg1.match.nw_dst=IPAddr("10.0.0.2")
-      msg1.actions.append(of.ofp_action_dl_addr.set_src("8a:3d:5a:6c:e3:fe")) #set src mac address to ip address of host A
-      msg1.actions.append(of.ofp_action_nw_addr.set_src(HOSTA_ADDR)) #set src ip address to ip address of host A
-      msg1.match.in_port=in_port
-      msg1.hard_timeout = FLOW_HARD_TIMEOUT
-      msg1.idle_timeout = FLOW_IDLE_TIMEOUT
-      msg1.actions.append(of.ofp_action_output(port = out_port))
-      switch.connection.send(msg1)
-      return
-
-    elif in_port==FIREWALL_TO_SWITCH_PORT and switch.dpid==FIREWALL_SERVICE_SWITCH_DPID and match.nw_dst==HOSTB_ADDR:
-      msg1 =of.ofp_flow_mod()
-      #msg1.match.dl_src=EthAddr("8e:f0:0d:59:7b:18")
-      #msg1.match.dl_dst=EthAddr("ca:0b:cb:59:d8:1c")
-      #msg1.match.nw_src=IPAddr("10.0.0.3")
-      #msg1.match.nw_dst=IPAddr("10.0.0.2")
-      msg1.actions.append(of.ofp_action_dl_addr.set_src("8a:3d:5a:6c:e3:fe")) #set src mac address to ip address of host A
-      msg1.actions.append(of.ofp_action_nw_addr.set_src(HOSTA_ADDR)) #set src ip address to ip address of host A
-      msg1.match.in_port=in_port
-      msg1.hard_timeout = FLOW_HARD_TIMEOUT
-      msg1.idle_timeout = FLOW_IDLE_TIMEOUT
-      msg1.actions.append(of.ofp_action_output(port = out_port))
-      switch.connection.send(msg1)
-      return
-
-
-    else:
-    	msg.match = match
-    	msg.match.in_port = in_port
-    	msg.idle_timeout = FLOW_IDLE_TIMEOUT
-    	msg.hard_timeout = FLOW_HARD_TIMEOUT
-#    msg.actions.append(of.ofp_action_output(port = out_port))
-   	msg.buffer_id = buf
-#    switch.connection.send(msg)
-   	#print match.nw_dst
-    	#print msg.match.nw_dst
-    	#print out_port
-#Below lines may be needed if we want to change dst_ip address of packets towards host B to ip address of TRANSCODER VM
-    	if out_port==SWITCH_TO_TRANSCODER_PORT and switch.dpid==TRANSCODER_SERVICE_SWITCH_DPID and match.nw_dst==HOSTB_ADDR:
-      		msg.actions.append(of.ofp_action_nw_addr.set_dst(TRANSCODER_VM_IP))
-      		msg.actions.append(of.ofp_action_dl_addr.set_dst("8e:f0:0d:59:7b:18"))
-    
-        if out_port==SWITCH_TO_FIREWALL_PORT and switch.dpid==FIREWALL_SERVICE_SWITCH_DPID and match.nw_dst==HOSTB_ADDR:
-                msg.actions.append(of.ofp_action_nw_addr.set_dst(FIREWALL_VM_IP))
-                msg.actions.append(of.ofp_action_dl_addr.set_dst("8e:f0:0d:59:7b:18"))  #set mac address of flow to mac address of FIREWALL VM
-
-    	msg.actions.append(of.ofp_action_output(port = out_port))
-    	switch.connection.send(msg)
-    	print "******message sent to switch:"
-   	print switch
-    
   def _install_path (self, p, match, packet_in=None):
-    print "inside _install_path"
     wp = WaitingPath(p, packet_in)
     for sw,in_port,out_port in p:
       self._install(sw, in_port, out_port, match)
@@ -419,30 +257,11 @@ class Switch (EventMixin):
       sw.connection.send(msg)
       wp.add_xid(sw.dpid,msg.xid)
 
-#************** Added by Sumit : to intall flows on intermediate and last switch switches *************#
-  def _install_path_new (self, p, match):
-#    wp = WaitingPath(p, packet_in)
-    print "inside _install_path_new"
-    for sw,in_port,out_port in p:
-      self._install(sw, in_port, out_port, match)
-      self._install(sw, out_port,in_port,match.flip()) #installing path in reverse direction from host B to host A
-#      msg = of.ofp_barrier_request()
-#      sw.connection.send(msg)
-#      wp.add_xid(sw.dpid,msg.xid)
-
-#***********************added till here ************************************************          
   def install_path (self, dst_sw, last_port, match, event):
     """
     Attempts to install a path between this switch and some destination
     """
-    #print "inside install_path and switches in sequence are self,dst_sw,event.port,last_port"
-    #print str(self)+" "+str(dst_sw)+" "+str(event.port)+" "+str(last_port)
-    print "printing mac_map again"
-    #for key in mac_map:
-      #print key
-      #print mac_map[key]
     p = _get_path(self, dst_sw, event.port, last_port)
-    print p
     if p is None:
       log.warning("Can't get from %s to %s", match.dl_src, match.dl_dst)
 
@@ -490,37 +309,22 @@ class Switch (EventMixin):
 
     # Now reverse it and install it backwards
     # (we'll just assume that will work)
-#Sumit : We  need a reverse path for getting the packets but the reverse path (host B to host A) shouldn't go via service VMs..that should go directly between switchs
     p = [(sw,out_port,in_port) for sw,in_port,out_port in p]
     self._install_path(p, match.flip())
- 
-#*********************Added by Sumit to get intermediate switched between service switch ***************
-# ???????????????? indentation needs to be checked before testing ???????????????
-  def install_path_new(self,src_sw, dst_sw, first_port, last_port, match):
-    p = _get_path(src_sw, dst_sw, first_port, last_port)
-    if p is None:
-      log.warning("Can't get from %s to %s", match.dl_src, match.dl_dst)
-    else:
-      log.debug("Installing path for %s -> %s %04x (%i hops)",
-      match.dl_src, match.dl_dst, match.dl_type, len(p))
-      # We have a path -- install it
-      self._install_path_new(p, match)
 
-#********************Changes till here *******************************************
-          
+
   def _handle_PacketIn (self, event):
     def flood ():
       """ Floods the packet """
-      #if self.is_holding_down:
-      #  log.warning("Not flooding -- holddown active")
-      log.warning("Flooding the packet")
+      if self.is_holding_down:
+        log.warning("Not flooding -- holddown active")
       msg = of.ofp_packet_out()
       # OFPP_FLOOD is optional; some switches may need OFPP_ALL
       msg.actions.append(of.ofp_action_output(port = of.OFPP_FLOOD))
       msg.buffer_id = event.ofp.buffer_id
       msg.in_port = event.port
       self.connection.send(msg)
-    
+
     def drop ():
       # Kill the buffer
       if event.ofp.buffer_id is not None:
@@ -531,57 +335,6 @@ class Switch (EventMixin):
         self.connection.send(msg)
 
     packet = event.parsed
-#*************changes made by mahendra ****************/
-    self.service_name_array = [];
-    ethr_hdr_len = packet.hdr_len
-    
-    print "Ethernet Payload length ->",packet.payload_len
-    if packet.type != ethernet.ARP_TYPE:
-        #if packet.type == ethernet.IP_TYPE and packet.payload_len >= 60:
-        #Skip Minimum length packet which doesn't contain any data
-
-    	ip_hdr_len = packet.next.hl *4
-
-	if packet.next.protocol !=ipv4.ICMP_PROTOCOL:
-		#Check if it is TCP SYN, SYN+ACK, or ACK packets
-		if (packet.next.protocol == ipv4.TCP_PROTOCOL) :
-			if packet.next.next.SYN or packet.next.next.ACK or packet.next.next.FIN or packet.next.next.RST :
-				print ">>>>TCP Connection establishment message Observed <<<<<"	
-				if (packet.next.next.payload_len == 0) :
-					print "%%%% No Payload %%%"
-					flood()
-					return
-
-    		transport_hdr_len = packet.next.next.hdr_len
-    		tot_hl = ethr_hdr_len + ip_hdr_len + transport_hdr_len
-        	print packet.next.dstip
-        
-        	print "*"*20
-        	print packet.next.next.raw[transport_hdr_len:]
-        	print "*"*20
-        	data = packet.next.next.raw[transport_hdr_len:]
-		'''else if (packet.next.protocol == ipv4.UDP_PROTOCOL) :
-        		print "*"*20
-        		print packet.next.next.raw[20:]
-        		print "*"*20
-        		data = packet.next.next.raw[20:]
-		'''
-        	self.timer = data[:3] #Sumit: changed the value from data[:2] to data[:1] as timer is only 1 byte
-        	print "Timer -", self.timer
-        	self.tot_srvc = data[3:4] 
-        	print " Total Service -",self.tot_srvc
-        	data = data[4:] 
-
-        	j=0;
-
-        	for i in range(0,int(self.tot_srvc)) :
-           		self.service_name_array.append(data[j:j+2] ); 
-           		j+=2
-           		print self.service_name_array[i]
-
-        	data = data[:j] 
-
-#*****************changes made by mahendra ends here *****************
 
     loc = (self, event.port) # Place we saw this ethaddr
     oldloc = mac_map.get(packet.src) # Place we last saw this ethaddr
@@ -622,51 +375,15 @@ class Switch (EventMixin):
 
     if packet.dst.is_multicast:
       log.debug("Flood multicast from %s", packet.src)
-      print "&&"*20
       flood()
     else:
       if packet.dst not in mac_map:
         log.debug("%s unknown -- flooding" % (packet.dst,))
-        print "******************************************************"
         flood()
       else:
-#*****************changes made by Sumit **********************
-        serv_switch=[]
-        serv_out_port=[]
-        serv_in_port=[]
-        if len(self.service_name_array) ==0:
-                flood()
-                return;
-
-        serv_switch, serv_out_port,serv_in_port=fetch_service_info(self.service_name_array)
-        
-        print serv_switch
-        #print serv_switch[0]
-        #print packet.next.v
-        #print packet.next.csum
-        #print packet.next.dstip
-        #print packet.next.srcip
-#        print dpid_to_str(serv_switch[0])
-
-#        print switches[00-00-00-00-00-01]          
-#        print serving_port          
         dest = mac_map[packet.dst]
-        len_serv_switch=len(serv_switch)
-#               serv_switch.append(dest[0])
-#               last_port=dest[1]
-#               port_serv_switch=adjacency[serv_switch[0]][self]                #port at serv_switch[0] to connect to this switch
-#               len_serv_switch=len(serv_switch)
         match = of.ofp_match.from_packet(packet)
-        self.install_path(switches[serv_switch[0]],serv_out_port[0], match, event) #in case only one serv_switch, install path to it and then to dest
-        i=0
-        
-        if len_serv_switch>1: #install flow on all service switches and destination in case of more than 1 service switch
-          while i<len_serv_switch-1:
-            self.install_path_new(switches[serv_switch[i]],switches[serv_switch[i+1]],serv_in_port[i],serv_out_port[i+1],match)
-            i=i+1  
-#          self.install_path_new(switches[serv_switch[i]],dest[0],serving_port[i],dest[1], match)
-        self.install_path_new(switches[serv_switch[i]],dest[0],serv_in_port[i],dest[1],match)  
-#******************Changes till here *****************************
+        self.install_path(dest[0], dest[1], match, event)
 
   def disconnect (self):
     if self.connection is not None:
@@ -689,9 +406,7 @@ class Switch (EventMixin):
 
   @property
   def is_holding_down (self):
-    if self._connected_at is None: 
-        print "###"*20
-        return True
+    if self._connected_at is None: return True
     if time.time() - self._connected_at > FLOOD_HOLDDOWN:
       return False
     return True
@@ -720,9 +435,7 @@ class l2_multi (EventMixin):
     l = event.link
     sw1 = switches[l.dpid1]
     sw2 = switches[l.dpid2]
-    print "l.dpid1 and dpid2"
-    print l.dpid1 , l.dpid2
-    print sw1, sw2
+
     # Invalidate all flows and path info.
     # For link adds, this makes sure that if a new link leads to an
     # improved path, we use it.
@@ -792,10 +505,8 @@ class l2_multi (EventMixin):
 
 def launch ():
   core.registerNew(l2_multi)
-
+  
   timeout = min(max(PATH_SETUP_TIME, 5) * 2, 15)
   Timer(timeout, WaitingPath.expire_waiting_paths, recurring=True)
-  #pox.openflow.discovery.launch();
-  import pox.openflow.spanning_tree
-  pox.openflow.spanning_tree.launch()
 
+  pox.openflow.discovery.launch()
