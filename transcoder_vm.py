@@ -77,15 +77,16 @@ class client_sock(threading.Thread):
 		s1.close()
 
 		
-thread_c = client_sock(1, "Thread-client", 33322)
-thread_s = server_sock(2, "Thread-server", 33322)
+thread_c = client_sock(1, "Thread-client", 30000)
+thread_s = server_sock(2, "Thread-server", 33330)
 
 # Start new Threads
 thread_s.start()
 print "back from server"
 #time.sleep(5)
 print "*****************sleep!!!!!!!!!!!!!!!!********"
-time.sleep(15)
+print "execute transcoder"
+execfile("./tr.py")
 thread_c.start()
 #thread_s.pause()
 # Add threads to thread list
