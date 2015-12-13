@@ -12,7 +12,7 @@ Controller program performs following operations:
 3. Finds the shortest path to access those services.
 4. Install flows on relevant switches which route packets to services installed at various machines in the network topology.
 
-Once flows are installed a png format image is sent by client towards a destination (Host B).
+Once flows are installed, a png format image is sent by client towards a destination (Host B).
 For demo , I have implemented a transcoder which performs image conversion from png to jpeg format. The purpose of implementing transcoder is to show proper routing of packets between switches towards service location so that image data is properly processed at transcoder and then sent towards destination. The transcoder service is installed at various location in the network. It helped in testing shortest path finding algorithm.
 
 Thus data sent by client (i.e. image) is routed towards service requested by a user (transcoder in this case) where it is received and processed . After processing, data sent towards either destination (Host B) or other services(if requested ) by user.. 
